@@ -1,0 +1,48 @@
+pipeline {
+  agent any
+  environment {
+    GHCR_REGISTRY = "ghcr.io/YOUR_GITHUB_ORG/YOUR_IMAGE_REPO"
+    GITOPS_REPO = "https://github.com/YOUR_GITHUB_ORG/YOUR_GITOPS_REPO.git"
+    IMAGE_TAG = "${env.BUILD_ID ?: 'local'}"
+  }
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+    stage('Install & Test') {
+      steps {
+        sh 'python3 -m venv .venv || true'
+        sh '. .venv/bin/activate && pip install -r app/requirements.txt'
+        sh '. .venv/bin/activate && python -m pytest -q app'
+      }
+    }
+    stage('Trivy Scan') {
+      steps {
+        sh 'bash ci-cd/trivy-scan.sh || true'
+      }
+    }
+    stage('Docker Build & Push') {
+      steps {
+        sh 'docker build -t ${GHCR_REGISTRY}:${IMAGE_TAG} -f app/Dockerfile .'
+        sh 'echo "Login to GHCR (placeholder)"'
+        sh 'docker push ${GHCR_REGISTRY}:${IMAGE_TAG}'
+      }
+    }
+    stage('Update GitOps Repo') {
+      steps {
+        sh 'git clone ${GITOPS_REPO} gitops || true'
+        sh 'cd gitops && git pull || true'
+        sh "sed -i 's|YOUR_IMAGE:.*|YOUR_IMAGE:${IMAGE_TAG}|g' gitops/overlays/echo-dev/kustomization.yaml || true"
+        sh 'cd gitops && git add -A && git commit -m "ci: update image to ${IMAGE_TAG}" || true'
+        sh 'cd gitops && git push origin main || true'
+      }
+    }
+  }
+  post {
+    always {
+      archiveArtifacts artifacts: 'app/**/test_*.xml', allowEmptyArchive: true
+    }
+  }
+}
