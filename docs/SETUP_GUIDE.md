@@ -54,3 +54,18 @@ Screenshots: (placeholders)
 - screenshot-jenkins-pipeline.png
 - screenshot-argocd-sync.png
 - screenshot-grafana-dashboard.png
+
+7) Deploy to Vercel (optional)
+
+This repository includes a lightweight Vercel serverless function at `api/echo.py` so you can deploy the app to Vercel without running Flask.
+
+```bash
+# Install Vercel (if not installed)
+npm i -g vercel
+
+# Deploy (interactive login may be required)
+vercel --prod
+```
+
+Vercel will use `vercel.json` to route `/` and `/health` to the serverless function. The function returns JSON similar to the Flask app.
+
