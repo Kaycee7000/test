@@ -5,6 +5,7 @@ id: money_en
 name: "Billion Dollar Blunders"
 enabled: true
 language: en
+niche_slug: money            # storage folder: money/<language>/<date>/...
 niche: "True stories of fortunes made and lost, business blunders and the psychology of money"
 audience: >
   Ambitious adults 18-44 in the US, UK, Canada and Australia interested in business, investing,

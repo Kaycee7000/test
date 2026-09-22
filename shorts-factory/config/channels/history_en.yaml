@@ -3,6 +3,7 @@ id: history_en
 name: "Untold History"           # working name; pick a brandable one before creating the channel
 enabled: true
 language: en
+niche_slug: history            # storage folder: history/<language>/<date>/...
 niche: "Untold history: the strangest TRUE moments, blunders and mysteries of the past"
 audience: >
   Curious adults 18-54 in the US, UK, Canada and Australia who binge documentaries, true stories

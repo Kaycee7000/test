@@ -24,9 +24,9 @@ flowchart LR
     G -- pass --> H
     K --> L
     N --> O[QC] --> P{Approval gate}
-    P --> Q[YouTube upload<br/>private + publishAt]
-    Q --> R[Analytics sync] --> B
-    R --> E
+    P --> Q[B2 storage<br/>niche/language/date<br/>+ post kit + manifest]
+    P -. publish.mode: youtube .-> Y[YouTube upload<br/>private + publishAt]
+    Y -.-> R[Analytics sync] -.-> B
 ```
 
 ## Principles
@@ -56,7 +56,8 @@ flowchart LR
 | `media/workers.py` | Launches GPU workers with manifests |
 | `workers/*.py` | TTS, alignment, image and animation workers |
 | `publish/schedule.py` | Publish slots inside local peak windows |
-| `publish/youtube.py` | OAuth, resumable scheduled uploads, playlists, metrics, dry-run publisher |
+| `publish/storage.py` | B2 (S3-compatible) and local delivery, post kits, daily manifests, local cleanup |
+| `publish/youtube.py` | Optional: OAuth, resumable scheduled uploads, playlists, metrics, dry-run publisher |
 | `review.py` | Daily HTML review page |
 
 ## Job folder layout
@@ -72,7 +73,16 @@ data/jobs/2026-09-23/history_en/20260923-history_en-1a2b3c/
   captions.ass           burned-in captions
   final.mp4              1080x1920 H.264 High, 30 fps, AAC 48 kHz, -14 LUFS
   preview.jpg            QC frame
-  upload_receipt.json    exact upload request (dry-run mode)
+```
+After a verified B2 upload, `storage.cleanup_local: media` deletes the media files above and keeps the small
+text files (script, words, captions). In the bucket:
+
+```
+history/en/2026-09-23/<job id>_<title-slug>.mp4    the video
+history/en/2026-09-23/<job id>_<title-slug>.json   post kit: title, description + hashtags, tags,
+                                                   pinned-comment question, suggested time, scores
+history/en/2026-09-23/<job id>_<title-slug>.jpg    preview frame
+history/en/2026-09-23/_manifest.csv / .json        the day's videos for this niche + language, in posting order
 ```
 
 ## Extending

@@ -119,8 +119,21 @@ class RenderCfg(BaseModel):
     transition_sfx: bool = True
 
 
+class StorageCfg(BaseModel):
+    """Delivery target for finished videos. Credentials come from the environment, never from YAML:
+    B2_KEY_ID, B2_APPLICATION_KEY (and optionally B2_BUCKET / B2_S3_ENDPOINT to override these)."""
+    provider: Literal["b2", "local"] = "b2"  # local = copy into `local_dir` (offline runs, tests)
+    bucket: str | None = None
+    endpoint: str | None = None  # e.g. https://s3.us-west-004.backblazeb2.com (bucket page in B2)
+    prefix: str = ""  # optional top-level folder inside the bucket
+    key_template: str = "{niche}/{language}/{date}/{stem}"
+    presign_days: int = 7  # download links in the daily manifest (max 7 days); 0 = no links
+    cleanup_local: Literal["none", "media", "all"] = "media"  # after a verified upload
+    local_dir: str = "export"
+
+
 class PublishCfg(BaseModel):
-    mode: Literal["youtube", "dry_run"] = "dry_run"
+    mode: Literal["storage", "youtube", "dry_run"] = "storage"
     secrets_dir: str = "secrets"
     client_secrets: str = "client_secret.json"
     max_uploads_per_project_per_day: int = 100
@@ -141,6 +154,7 @@ class Settings(BaseModel):
     captions: CaptionCfg = CaptionCfg()
     render: RenderCfg = RenderCfg()
     publish: PublishCfg = PublishCfg()
+    storage: StorageCfg = StorageCfg()
 
     # Resolved at load time so relative paths work from any cwd.
     root: str = "."
@@ -165,7 +179,8 @@ class Settings(BaseModel):
         s.align.backend = "mock"
         s.images.backend = "mock"
         s.animate.enabled = False
-        s.publish.mode = "dry_run"
+        s.publish.mode = "storage"
+        s.storage.provider = "local"
         return s
 
 
@@ -229,6 +244,7 @@ class ChannelCfg(BaseModel):
     name: str
     enabled: bool = True
     language: str = "en"
+    niche_slug: str | None = None  # storage folder that groups channels of the same niche
     niche: str
     audience: str
     brief: str
@@ -250,6 +266,10 @@ class ChannelCfg(BaseModel):
             if f.id == fid:
                 return f
         return self.formats[0]
+
+    @property
+    def folder(self) -> str:
+        return self.niche_slug or self.id
 
     @property
     def target_words(self) -> tuple[int, int]:
@@ -279,8 +299,12 @@ def load_settings(path: str | os.PathLike = "config/settings.yaml") -> Settings:
         s.publish.secrets_dir = env["SHORTS_SECRETS_DIR"]
     if env.get("SHORTS_TTS_PYTHON"):
         s.tts.python = env["SHORTS_TTS_PYTHON"]
-    if env.get("SHORTS_PUBLISH_MODE") in ("youtube", "dry_run"):
+    if env.get("SHORTS_PUBLISH_MODE") in ("storage", "youtube", "dry_run"):
         s.publish.mode = env["SHORTS_PUBLISH_MODE"]  # type: ignore[assignment]
+    if env.get("B2_BUCKET"):
+        s.storage.bucket = env["B2_BUCKET"]
+    if env.get("B2_S3_ENDPOINT"):
+        s.storage.endpoint = env["B2_S3_ENDPOINT"]
     return s
 
 

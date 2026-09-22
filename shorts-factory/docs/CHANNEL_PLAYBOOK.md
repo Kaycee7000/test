@@ -1,6 +1,13 @@
 # Channel playbook (YouTube account specialist)
 
 Everything outside the code that decides whether these channels grow, get monetized and *stay* monetized.
+
+> **Current setup:** the pipeline delivers finished videos to Backblaze B2 (`publish.mode: storage`) and does not
+> post to YouTube. Each video's `.json` post kit and the daily `_manifest.csv` hold the title, description,
+> hashtags, pinned-comment question and suggested posting time. When you post, **turn on "Altered or synthetic
+> content"** in the upload flow. Sections 2 (API/OAuth) and the `shorts sync` feedback loop only apply if you
+> later switch to `publish.mode: youtube`. Everything else here applies to however you post.
+
 Items marked **(verify)** are YouTube/Google rules that change. Re-check them on the official pages before launch.
 
 ## 1. Account structure

@@ -5,6 +5,7 @@ id: history_es
 name: "Historia Oculta"
 enabled: true
 language: es
+niche_slug: history            # storage folder: history/<language>/<date>/...
 niche: "Historia oculta: los momentos más extraños y reales del pasado"
 audience: >
   Spanish-speaking adults 18-54 in Mexico, Colombia, Argentina, Spain, the US Hispanic market and

@@ -46,6 +46,7 @@ def build_review_page(db: DB, day: str, out: Path) -> Path:
   <div class="meta">publish {html.escape(r['slot_utc'] or '-')} UTC · {data.get('duration', '?')}s · {scores}</div>
   <details><summary>script</summary>{html.escape(narration)}</details>
   {f'<details><summary>error</summary>{html.escape(r["error"] or "")}</details>' if r['error'] else ''}
+  {f'<div class="meta">delivered: {html.escape(data["delivery"]["key"])}</div>' if data.get('delivery') else ''}
   <code>{html.escape(r['id'])}</code>
 </div>""")
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">

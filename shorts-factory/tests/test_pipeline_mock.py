@@ -1,4 +1,4 @@
-"""End-to-end with every model mocked: real workers, real renderer, real ffmpeg mix, dry-run upload."""
+"""End-to-end with every model mocked: real workers, real renderer, real ffmpeg mix, local-storage delivery."""
 import json
 from datetime import date, timedelta
 from pathlib import Path
@@ -33,15 +33,23 @@ def test_full_day_mock_run(project: Path):
     assert [j["state"] for j in jobs] == ["uploaded"], [j["error"] for j in jobs]
     job = jobs[0]
     jdir = Path(job["dir"])
-    info = probe(jdir / "final.mp4")
+    delivery = json.loads(job["data"])["delivery"]
+    out = s.path(s.storage.local_dir)
+    group = out / "history" / "en" / day.isoformat()
+    video = out / delivery["key"]
+    assert video.parent == group and video.name.startswith(job["id"])
+    kit = json.loads(video.with_suffix(".json").read_text())
+    assert kit["title"] and kit["suggested_post_time_local"] and "synthetic" in kit["ai_disclosure"]
+    assert video.with_suffix(".jpg").exists()
+    manifest = (group / "_manifest.csv").read_text(encoding="utf-8-sig")
+    assert kit["title"] in manifest and delivery["key"] in manifest
+    assert not (jdir / "final.mp4").exists() and (jdir / "script.json").exists()  # local media cleaned up
+    info = probe(video)
     v = next(st for st in info["streams"] if st["codec_type"] == "video")
     assert (v["width"], v["height"]) == (1080, 1920)
     assert any(st["codec_type"] == "audio" for st in info["streams"])
     assert 15 <= float(info["format"]["duration"]) <= 59.5
-    receipt = json.loads((jdir / "upload_receipt.json").read_text())
-    assert receipt["contains_synthetic_media"] is True
-    assert "#" in receipt["meta"]["description"]
-    assert (jdir / "preview.jpg").exists()
+    assert "#" in kit["description"]
 
     # idempotent: a second run plans nothing new and changes nothing
     p.run(day, count=1)

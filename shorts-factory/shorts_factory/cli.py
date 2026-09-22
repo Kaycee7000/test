@@ -113,10 +113,16 @@ def doctor() -> None:
             rows.append((f"{ch.id} voice ref", p.exists(), str(p) if p.exists() else f"missing {p} (built-in voice used)"))
         music = [m for m in ch.music_moods if any((s.assets / "music" / m).glob("*.*"))]
         rows.append((f"{ch.id} music", bool(music), f"{len(music)}/{len(ch.music_moods)} moods stocked"))
-        if s.publish.mode == "youtube":
+        if s.publish.mode == "youtube" and not state.mock:
             from .publish.youtube import token_path
             tp = token_path(s, ch)
             rows.append((f"{ch.id} OAuth token", tp.exists(), str(tp)))
+    if s.publish.mode == "storage":
+        from .publish.storage import make_store
+        try:
+            rows.append((f"storage ({s.storage.provider})", True, make_store(s).check()))
+        except Exception as e:
+            rows.append((f"storage ({s.storage.provider})", False, str(e)[:120]))
     t = Table("check", "ok", "detail")
     for name, ok, detail in rows:
         t.add_row(name, "[green]yes[/]" if ok else "[red]no[/]", detail)
@@ -164,7 +170,7 @@ def make(
     topic: str = typer.Option(..., "--topic", help="What the Short is about"),
     fmt: Optional[str] = typer.Option(None, "--format", help="Format id (default: channel's first)"),
     angle: str = typer.Option("", "--angle"),
-    upload: bool = typer.Option(False, "--upload/--no-upload"),
+    upload: bool = typer.Option(False, "--upload/--no-upload", help="Also deliver it (B2, or YouTube per publish.mode)"),
 ) -> None:
     """Make ONE Short now for a given topic (great for tuning prompts and styles)."""
     p = _pipeline(channel)
@@ -180,7 +186,10 @@ def make(
     p.run(date.today(), stages=stages, ids=[jid])
     row = p.db.job(jid)
     console.print(f"job {jid}: [bold]{row['state']}[/] {row['error'] or ''}")
-    if row["state"] in ("ready", "uploaded"):
+    delivered = json.loads(row["data"]).get("delivery")
+    if delivered:
+        console.print(f"delivered: {delivered['provider']} {delivered.get('bucket') or ''} {delivered['key']}")
+    elif row["state"] == "ready":
         console.print(f"video: {Path(row['dir']) / 'final.mp4'}")
     _print_usage(p)
 
@@ -200,6 +209,9 @@ def auth(channel: str = typer.Option(..., "--channel"), port: int = typer.Option
 def sync() -> None:
     """Pull views / retention for uploaded videos (feeds format selection and writer learnings)."""
     p = _pipeline()
+    if p.s.publish.mode != "youtube":
+        console.print("[dim]skipped: analytics sync needs publish.mode: youtube (videos are delivered to storage)[/]")
+        return
     console.print(f"stored metrics for {p.sync_metrics()} videos")
 
 

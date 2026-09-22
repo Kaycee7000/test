@@ -42,6 +42,8 @@ Monthly ballpark at 42/day (check current RunPod and Anthropic pricing):
    bash scripts/runpod_bootstrap.sh          # ffmpeg, both venvs, fonts, database
    cat > /workspace/secrets.env <<'EOF'
    ANTHROPIC_API_KEY=sk-ant-...
+   B2_KEY_ID=...                             # Backblaze application key (see "Backblaze B2" below)
+   B2_APPLICATION_KEY=...
    HF_TOKEN=hf_...                           # only needed for gated models like FLUX.1-dev
    # ELEVENLABS_API_KEY=...                  # only if tts.backend: elevenlabs
    EOF
@@ -53,7 +55,22 @@ Monthly ballpark at 42/day (check current RunPod and Anthropic pricing):
    ```
 4. Add your assets: `assets/voices/<channel>.wav`, `assets/music/<mood>/…`, `assets/sfx/whoosh/…` (read the READMEs there: licensing matters).
 5. First videos: `shorts make --channel history_en --topic "The Great Emu War of 1932"`, then open `data/jobs/<today>/…/final.mp4` in Jupyter. Tune `visual_style`, voice `exaggeration` and caption settings until you love it.
-6. Copy `secrets/client_secret.json` and the `*.token.json` files from `shorts auth` (run on your laptop) into `shorts-factory/secrets/`.
+6. Set up Backblaze B2 (below) and check `shorts doctor` shows `storage (b2)` green.
+
+## Backblaze B2
+
+1. B2 → Buckets → **Create a Bucket**: private. Copy its **S3 endpoint** from the bucket card (e.g. `https://s3.us-west-004.backblazeb2.com`).
+2. B2 → Application Keys → **Add a New Application Key**: restrict it to that bucket, Read and Write. Save the keyID and applicationKey into `/workspace/secrets.env` as `B2_KEY_ID` / `B2_APPLICATION_KEY`. The key is shown only once.
+3. In `config/settings.yaml` → `storage`: set `bucket` and `endpoint` (or `B2_BUCKET` / `B2_S3_ENDPOINT` in `secrets.env`).
+4. `shorts doctor`, then `shorts make --channel history_en --topic "…" --upload` and check the file appears under `history/en/<date>/`.
+
+Every video is size-verified after upload. Each niche/language/date folder gets a `_manifest.csv` (opens in Excel or Google Sheets) with
+posting order, title, description and a 7-day download link per video. Grab a whole day with the B2 web UI, `rclone` or
+`b2 sync`. Storage need is about 35 MB per video (about 45 GB/month at 42/day); add a B2 lifecycle rule if you want old
+days removed automatically. After each verified upload, local media is deleted (`storage.cleanup_local: media`),
+so the network volume doesn't fill up.
+
+The same code works with any S3-compatible store (Cloudflare R2, Wasabi, AWS S3): change `endpoint` and the keys.
 
 ## Daily automation
 
@@ -61,7 +78,7 @@ A full day's batch takes 1.5-2 hours, so don't keep the GPU running 24/7. Pick o
 
 **A. Manual (simplest to start):** start the pod from the console each day, run `bash scripts/daily_run.sh`, stop the pod. About 5 minutes of your time.
 
-**B. Self-stopping pod:** run `STOP_POD_WHEN_DONE=1 bash scripts/daily_run.sh` (e.g. via `nohup … &`). The pod stops itself when the batch is scheduled. Start it on a timer from anywhere:
+**B. Self-stopping pod:** run `STOP_POD_WHEN_DONE=1 bash scripts/daily_run.sh` (e.g. via `nohup … &`). The pod stops itself once the batch is in B2. Start it on a timer from anywhere:
 ```bash
 # RunPod REST API v1. RunPod has announced v1 stops serving on 2026-11-15; switch to its successor
 # (or `runpodctl start pod <id>`) when RunPod publishes the migration path.
@@ -72,7 +89,7 @@ Caveat: a stopped pod gets its GPU back only if one is free in that datacenter. 
 
 **C. Custom image:** build `Dockerfile` (`docker build -t you/shorts-factory . && docker push …`), make a RunPod template from it with env `RUN_DAILY=1`, and point it at the network volume. Each start produces tomorrow's batch and stops the pod; without `RUN_DAILY` it boots into the normal SSH/Jupyter environment.
 
-Because uploads are scheduled (`publishAt`), videos go live across the day even with the pod off.
+Everything lands in B2 before the pod stops, so the pod can be off while you post.
 
 ## Operating
 
@@ -80,7 +97,7 @@ Because uploads are scheduled (`publishAt`), videos go live across the day even 
 shorts status --date tomorrow            # jobs per state per channel; failed jobs show their error
 shorts review --date tomorrow            # HTML page with every video, script and critic scores
 shorts approve --date tomorrow           # when publish.require_approval is on
-shorts run --date tomorrow --stages upload
+shorts run --date tomorrow --stages upload   # (re)deliver ready videos to B2
 shorts run --date tomorrow --stages render,qc   # re-run a stage (stages only pick up jobs in their input state)
 shorts report --channel history_en       # what's winning
 ```
@@ -97,5 +114,6 @@ Everything is resumable: if a run dies halfway, run the same command again.
 | Renders slow on H100/A100 | These GPUs have no NVENC; use a pod with more vCPUs or raise `render.workers` |
 | `voice too long` rejections | Lower `target_seconds` by 3-5 s in the channel YAML, or `tts.speed: 1.1` |
 | Scripts rejected a lot | Look at `data/jobs/…/script.rejected.json` for critic notes; relax `min_overall_score` slightly or improve the channel brief |
-| Uploads stay private | API project not audited yet (see CHANNEL_PLAYBOOK §2) |
-| `quotaExceeded` | Upload cap for the project reached; remaining videos upload on the next run (they're rescheduled automatically) |
+| `storage (b2)` red in doctor | Check `B2_KEY_ID` / `B2_APPLICATION_KEY` are exported, the key is allowed on that bucket, and `endpoint` matches the bucket's region |
+| `Unsupported header 'x-amz-sdk-checksum-algorithm'` | Already handled in `B2Store`. If you see it, you are calling boto3 directly without the `when_required` checksum config |
+| Videos stay `ready` | Delivery failed or approval is on: `shorts status`, then `shorts run --date … --stages upload` |

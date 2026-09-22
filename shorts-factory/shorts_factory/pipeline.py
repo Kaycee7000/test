@@ -4,7 +4,7 @@ Instead of pushing one video through every model (reloading models 50x a day), e
 the whole day's batch with its model loaded once:
 
   plan -> script (API, parallel) -> voice (GPU) -> align (GPU) -> images (GPU) -> animate (GPU, optional)
-       -> render (CPU, parallel) -> qc -> upload (scheduled publishAt)
+       -> render (CPU, parallel) -> qc -> upload (B2 storage grouped by niche; YouTube optional)
 
 Every stage is idempotent and resumable: it only picks up jobs in its input state, so a crashed or
 interrupted run continues where it stopped when re-run.
@@ -30,6 +30,7 @@ from .db import DB, now_iso
 from .media.audio import change_tempo, concat_wavs, duration, mean_volume_db, probe
 from .media.workers import WorkerError, run_worker
 from .publish.schedule import daily_slots, pacific_day
+from .publish.storage import cleanup_local, deliver, make_store, write_manifests
 from .publish.youtube import QuotaExhausted, build_metadata, lookback, make_publisher
 
 log = logging.getLogger(__name__)
@@ -388,6 +389,38 @@ class Pipeline:
             if waiting:
                 log.info("%d ready video(s) await `shorts approve`", len(waiting))
             rows = [r for r in rows if json.loads(r["data"]).get("approved")]
+        if not rows:
+            return
+        if self.s.publish.mode == "storage":
+            self._deliver_to_storage(rows)
+        else:
+            self._upload_to_youtube(rows)
+
+    def _deliver_to_storage(self, rows: list) -> None:
+        """Push final videos + post kits to B2 (or a local folder), grouped by niche/language/date."""
+        try:
+            store = make_store(self.s)
+        except Exception as e:
+            log.error("storage unavailable, %d video(s) stay ready: %s", len(rows), e)
+            return
+        touched: set[tuple[str, str]] = set()
+        for row in rows:
+            ch = self.channels[row["channel"]]
+            try:
+                info = deliver(store, self.s, ch, row, self._script(row), json.loads(row["data"]))
+            except Exception as e:
+                log.exception("delivery failed for %s", row["id"])
+                self.db.fail(row["id"], f"storage: {e}", max_attempts=5)
+                continue
+            self.db.merge_data(row["id"], delivery=info)
+            self.db.update_job(row["id"], state="uploaded", uploaded_at=now_iso(), project=store.name, error=None)
+            touched.add((ch.id, row["publish_date"]))
+            cleanup_local(Path(row["dir"]), self.s.storage.cleanup_local)
+            log.info("%s: delivered %s", row["id"], info["key"])
+        for m in write_manifests(store, self.s, self.db, self.channels, touched):
+            log.info("manifest %s", m)
+
+    def _upload_to_youtube(self, rows: list) -> None:
         now = datetime.now(timezone.utc)
         earliest = now + timedelta(minutes=self.s.publish.lead_minutes)
         cap = self.s.publish.max_uploads_per_project_per_day
