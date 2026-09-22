@@ -3,8 +3,9 @@
 Instead of pushing one video through every model (reloading models 50x a day), each stage processes
 the whole day's batch with its model loaded once:
 
-  plan -> script (API, parallel) -> voice (GPU) -> align (GPU) -> images (GPU) -> animate (GPU, optional)
-       -> render (CPU, parallel) -> qc -> upload (B2 storage grouped by niche; YouTube optional)
+  feedback (team CSVs) -> scout (public trends -> knowledge base) -> plan -> research (sourced dossier per video)
+       -> script (API, parallel, RAG-grounded) -> voice (GPU) -> align (GPU) -> images (GPU)
+       -> animate (GPU, optional) -> render (CPU, parallel) -> qc -> upload (B2 grouped by niche; YouTube optional)
 
 Every stage is idempotent and resumable: it only picks up jobs in its input state, so a crashed or
 interrupted run continues where it stopped when re-run.
@@ -15,6 +16,7 @@ import json
 import logging
 import random
 import shutil
+import sqlite3
 import zlib
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
@@ -30,12 +32,18 @@ from .db import DB, now_iso
 from .media.audio import change_tempo, concat_wavs, duration, mean_volume_db, probe
 from .media.workers import WorkerError, run_worker
 from .publish.schedule import daily_slots, pacific_day
+from .publish.feedback import import_from_store
 from .publish.storage import cleanup_local, deliver, make_store, write_manifests
+from .research.dossier import build_dossier, writing_context
+from .research.embed import LocalEmbedder, NoEmbedder, make_embedder
+from .research.kb import KnowledgeBase
+from .research.scout import scout_channel, trend_brief
 from .publish.youtube import QuotaExhausted, build_metadata, lookback, make_publisher
 
 log = logging.getLogger(__name__)
 
-STAGES = ["plan", "script", "voice", "align", "images", "animate", "render", "qc", "upload"]
+STAGES = ["feedback", "scout", "plan", "research", "script", "voice", "align", "images", "animate", "render", "qc",
+          "upload"]
 
 
 def _seed(*parts: Any) -> int:
@@ -49,6 +57,7 @@ class Pipeline:
         self.channels = {c.id: c for c in channels}
         self.db = db or DB(settings.work / "shorts.db")
         self._llm: LLM | None = None
+        self._kb: KnowledgeBase | None = None
         self.scratch = settings.work / "manifests"
 
     @property
@@ -56,6 +65,24 @@ class Pipeline:
         if self._llm is None:
             self._llm = make_llm(self.s.llm)
         return self._llm
+
+    @property
+    def kb(self) -> KnowledgeBase:
+        if self._kb is None:
+            rc = self.s.research
+            self._kb = KnowledgeBase(self.s.work / rc.kb_path, make_embedder(rc.embedder, rc.embed_model, rc.embed_device))
+        return self._kb
+
+    def release_embedder(self) -> None:
+        """Free the embedding model's VRAM before the GPU-heavy stages."""
+        if self._kb is not None and isinstance(self._kb.embedder, LocalEmbedder):
+            self._kb.embedder = NoEmbedder()
+            self._kb = None
+            try:
+                import torch
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
 
     def _jobs(self, state: str, day: str | None, ids: list[str] | None) -> list:
         rows = self.db.jobs(state=state, publish_date=day, ids=ids)
@@ -77,7 +104,10 @@ class Pipeline:
             if need <= 0:
                 continue
             if len(self.db.topics(ch.id, status="new")) < need * 2:
-                generate_topics(self.llm, self.db, ch, n=max(30, need * 4))
+                research_on = self.s.research.enabled
+                generate_topics(self.llm, self.db, ch, n=max(30, need * 4),
+                                trends=trend_brief(self.kb, self.s, ch) if research_on else "",
+                                kb=self.kb if research_on else None, similarity=self.s.research.topic_similarity)
             rng = random.Random(_seed(ch.id, day))
             fmts = pick_formats(ch, need, outcomes(self.db.performance(ch.id), "format"), rng)
             live = self.db.jobs(channel=ch.id, publish_date=day.isoformat())
@@ -95,7 +125,7 @@ class Pipeline:
                 self.db.mark_topic(topic["id"], "used")
                 jid = self.db.create_job(
                     ch.id, topic["id"], day.isoformat(), topic["format"], topic["title"], self.s.work,
-                    data={"topic": {k: topic[k] for k in ("title", "angle", "format")} |
+                    data={"topic": {k: topic[k] for k in ("title", "angle", "format", "trend_ref")} |
                           {"keywords": json.loads(topic["keywords"])}},
                 )
                 if i < len(free):
@@ -104,23 +134,81 @@ class Pipeline:
             log.info("%s: planned %d new job(s) for %s (target %d)", ch.id, len(created) - before, day, target)
         return created
 
+    # ------------------------------------------------------------------ feedback + scout + research
+
+    def stage_feedback(self, day: str | None = None, ids: list[str] | None = None) -> None:
+        """Import performance CSVs the posting team dropped into storage."""
+        if self.s.publish.mode != "storage":
+            return
+        try:
+            import_from_store(make_store(self.s), self.s.research.feedback_prefix, self.db)
+        except Exception as e:
+            log.warning("feedback import skipped: %s", e)
+
+    def stage_scout(self, day: date, force: bool = False) -> None:
+        if not self.s.research.enabled:
+            return
+        purged = self.kb.purge_expired()
+        if purged:
+            log.info("knowledge base: purged %d expired documents", purged)
+        for ch in self.channels.values():
+            scout_channel(self.kb, self.s, ch, day, force=force)
+
+    def stage_research(self, day: str | None, ids: list[str] | None = None) -> None:
+        rows = self._jobs("planned", day, ids)
+        if not rows:
+            return
+        if not self.s.research.enabled:
+            for r in rows:
+                self.db.update_job(r["id"], state="researched")
+            return
+        kb = self.kb
+
+        def work(row) -> tuple[str, int]:
+            ch = self.channels[row["channel"]]
+            return build_dossier(self.llm, kb, self.s, ch, row["id"], json.loads(row["data"])["topic"])
+
+        with ThreadPoolExecutor(max_workers=self.s.llm.concurrency) as ex:
+            futs = {ex.submit(work, r): r for r in rows}
+            for fut in as_completed(futs):
+                row = futs[fut]
+                try:
+                    text, doc_id = fut.result()
+                except Exception as e:
+                    log.exception("research failed for %s", row["id"])
+                    self.db.fail(row["id"], f"research: {e}")
+                    continue
+                (Path(row["dir"]) / "research.md").write_text(text, encoding="utf-8")
+                self.db.merge_data(row["id"], dossier_doc=doc_id)
+                self.db.update_job(row["id"], state="researched", error=None)
+                log.info("%s: researched (%d chars)", row["id"], len(text))
+
     # ------------------------------------------------------------------ script
 
     def stage_script(self, day: str | None, ids: list[str] | None = None) -> None:
-        rows = self._jobs("planned", day, ids)
+        rows = self._jobs("researched", day, ids)
         if not rows:
             return
         writer = ScriptWriter(self.llm, self.s.llm)
         # sqlite connections are single-threaded: gather per-channel context up front
         ctx = {cid: (learnings_text(self.db.performance(cid)), self.db.recent_titles(cid))
                for cid in {r["channel"] for r in rows}}
+        research: dict[str, str] = {}
+        for r in rows:
+            if not self.s.research.enabled:
+                break
+            dpath = Path(r["dir"]) / "research.md"
+            data = json.loads(r["data"])
+            research[r["id"]] = writing_context(
+                self.kb, self.s, self.channels[r["channel"]], data["topic"],
+                dpath.read_text(encoding="utf-8") if dpath.exists() else "", data.get("dossier_doc"))
 
         def work(row) -> ScriptResult:
             ch = self.channels[row["channel"]]
             topic = json.loads(row["data"])["topic"]
             learn, recent = ctx[ch.id]
             recent = [t for t in recent if t != row["title"]]
-            return writer.write(ch, row["format"], topic, learn, recent)
+            return writer.write(ch, row["format"], topic, learn, recent, research.get(row["id"], ""))
 
         with ThreadPoolExecutor(max_workers=self.s.llm.concurrency) as ex:
             futs = {ex.submit(work, r): r for r in rows}
@@ -145,6 +233,13 @@ class Pipeline:
                     self.db.update_job(row["id"], state="scripted", title=res.draft.title,
                                        hook_type=res.draft.hook_type, error=None)
                     log.info("%s: scripted in %d round(s): %s", row["id"], res.rounds, res.draft.title)
+                    if self.s.research.enabled:  # future topics and scripts avoid repeating this one
+                        ch = self.channels[row["channel"]]
+                        self.kb.add("script", ch.folder, ch.language, res.draft.title,
+                                    " ".join(sc.narration for sc in res.draft.scenes), platform=ch.platform,
+                                    meta={"job_id": row["id"], "format": row["format"],
+                                          "hook_type": res.draft.hook_type, "sources": res.draft.sources},
+                                    key=f"script:{row['id']}", replace=True)
                 else:
                     self.db.update_job(row["id"], state="rejected", error="; ".join(res.notes)[-1500:])
                     if row["topic_id"]:
@@ -503,18 +598,52 @@ class Pipeline:
             count: int | None = None, refill_cycles: int = 2) -> None:
         stages = stages or STAGES
         d = day.isoformat()
+        if "feedback" in stages and not ids:
+            self.stage_feedback()
+        if "scout" in stages and not ids:
+            self.stage_scout(day)
         if "plan" in stages and not ids:
             self.plan(day, count=count)
+        if "research" in stages:
+            self.stage_research(d, ids)
         if "script" in stages:
             self.stage_script(d, ids)
             for _ in range(refill_cycles if (not ids and "plan" in stages) else 0):
                 if not self.plan(day, count=count):  # replace scripts the quality gate rejected
                     break
+                if "research" in stages:
+                    self.stage_research(d, ids)
                 self.stage_script(d, ids)
+        self.release_embedder()
         for name in ["voice", "align", "images", "animate", "render", "qc", "upload"]:
             if name in stages:
                 log.info("== stage %s", name)
                 getattr(self, f"stage_{name}")(d, ids)
+        if "upload" in stages:
+            self.backup()
+
+    def backup(self) -> None:
+        """Snapshot the job database and knowledge base into storage (_system/backups/<date>/)."""
+        if self.s.publish.mode != "storage" or not self.s.research.backup_to_storage:
+            return
+        try:
+            store = make_store(self.s)
+            tmp = self.s.work / "backup"
+            tmp.mkdir(parents=True, exist_ok=True)
+            day = datetime.now(timezone.utc).date().isoformat()
+            snap = tmp / "shorts.db"
+            dst = sqlite3.connect(snap)
+            self.db.conn.backup(dst)
+            dst.close()
+            kb = self._kb or KnowledgeBase(self.s.work / self.s.research.kb_path, NoEmbedder())
+            files = [snap, kb.backup(tmp / "knowledge.db")]
+            prefix = "/".join(p for p in (self.s.storage.prefix.strip("/"), "_system/backups", day) if p)
+            for f in files:
+                store.put(f, f"{prefix}/{f.name}", "application/vnd.sqlite3")
+                f.unlink()
+            log.info("backed up databases to %s/", prefix)
+        except Exception as e:
+            log.warning("database backup skipped: %s", e)
 
     def status(self, day: str | None = None) -> dict[str, dict[str, int]]:
         out: dict[str, dict[str, int]] = {}

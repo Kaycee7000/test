@@ -39,6 +39,8 @@ def main() -> None:
         repos.append("hexgrad/Kokoro-82M")
     if s.animate.enabled:
         repos.append(s.animate.model)
+    if s.research.enabled and s.research.embedder in ("auto", "local"):
+        repos.append(s.research.embed_model)
     for repo in repos:
         print(f"==> {repo}", flush=True)
         try:

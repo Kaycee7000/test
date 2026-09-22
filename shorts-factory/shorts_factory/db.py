@@ -11,7 +11,7 @@ from typing import Any, Iterator
 
 # Linear job lifecycle. A stage moves jobs from STATES[i-1] to STATES[i].
 STATES = [
-    "planned", "scripted", "voiced", "aligned", "imaged", "animated", "rendered", "ready", "uploaded",
+    "planned", "researched", "scripted", "voiced", "aligned", "imaged", "animated", "rendered", "ready", "uploaded",
 ]
 TERMINAL = {"failed", "rejected"}
 
@@ -77,6 +77,13 @@ class DB:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(topics)")}
+        if "trend_ref" not in cols:
+            with self.conn:
+                self.conn.execute("ALTER TABLE topics ADD COLUMN trend_ref TEXT")
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:
@@ -88,9 +95,10 @@ class DB:
     def add_topics(self, channel: str, ideas: list[dict[str, Any]]) -> int:
         with self.tx() as c:
             c.executemany(
-                "INSERT INTO topics(channel,title,angle,format,keywords,priority,created_at) VALUES (?,?,?,?,?,?,?)",
+                "INSERT INTO topics(channel,title,angle,format,keywords,priority,trend_ref,created_at)"
+                " VALUES (?,?,?,?,?,?,?,?)",
                 [(channel, i["title"], i.get("angle", ""), i["format"], json.dumps(i.get("keywords", [])),
-                  float(i.get("priority", 5)), now_iso()) for i in ideas],
+                  float(i.get("priority", 5)), i.get("trend_ref"), now_iso()) for i in ideas],
             )
         return len(ideas)
 

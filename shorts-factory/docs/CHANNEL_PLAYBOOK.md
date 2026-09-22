@@ -5,8 +5,10 @@ Everything outside the code that decides whether these channels grow, get moneti
 > **Current setup:** the pipeline delivers finished videos to Backblaze B2 (`publish.mode: storage`) and does not
 > post to YouTube. Each video's `.json` post kit and the daily `_manifest.csv` hold the title, description,
 > hashtags, pinned-comment question and suggested posting time. When you post, **turn on "Altered or synthetic
-> content"** in the upload flow. Sections 2 (API/OAuth) and the `shorts sync` feedback loop only apply if you
-> later switch to `publish.mode: youtube`. Everything else here applies to however you post.
+> content"** in the upload flow. The posting team's day-to-day contract (what they get, how they send
+> performance back) is in [TEAM_HANDOFF.md](TEAM_HANDOFF.md). Section 2 (API/OAuth) and `shorts sync` only apply
+> if you later switch to `publish.mode: youtube`; with B2 delivery, the team's feedback CSVs feed section 5's
+> learning loop instead.
 
 Items marked **(verify)** are YouTube/Google rules that change. Re-check them on the official pages before launch.
 
@@ -69,7 +71,7 @@ Shorts analytics in Studio (per video, after ~48 h):
 | Subscribers per 1k views | ≥ 1 | ≥ 3 | The channel promise is unclear: sharpen branding and series playlists |
 | Engaged views vs views **(verify)** | | | Since March 2025 "views" counts every play and replay; YPP and revenue use **engaged views** |
 
-`shorts sync` pulls views, likes, comments, shares, subscribers gained and average % viewed through the API. The pipeline then:
+The team's feedback CSVs (or `shorts sync` in `publish.mode: youtube`) bring in views, likes, comments, shares, subscribers gained and average % viewed. The pipeline then:
 - marks each video a *win* if it beats the channel median on views **and** average % viewed (once it's 48 h old);
 - shifts format selection toward winners (Thompson sampling) and feeds the top and bottom performers to the writer as "what works here";
 - shows format and hook win rates in `shorts report --channel <id>`.

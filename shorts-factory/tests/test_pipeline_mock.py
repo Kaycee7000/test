@@ -51,6 +51,23 @@ def test_full_day_mock_run(project: Path):
     assert 15 <= float(info["format"]["duration"]) <= 59.5
     assert "#" in kit["description"]
 
+    # research layer: trend signals scouted, a sourced dossier per video, the script stored for future RAG
+    assert (jdir / "research.md").read_text().startswith("## Core story")
+    assert kit["sources"] == ["https://example.org/record"] and kit["platform"] == "youtube_shorts"
+    stats = p.kb.stats()["docs"]
+    assert stats.get("trend_video") and stats.get("dossier") == 1 and stats.get("script") == 1
+    assert (out / "_system" / "backups").exists()  # shorts.db + knowledge.db snapshots
+    header = manifest.splitlines()[0]
+    assert "posted_url" in header and "avg_view_pct" in header  # columns the posting team fills in
+
+    # the team fills in the manifest and drops it in feedback/; the next run learns from it
+    filled = manifest.replace(",,,,,,,,", ",https://www.youtube.com/shorts/ABCDEFGHIJK,,4200,81,,,,")
+    (out / "feedback").mkdir()
+    (out / "feedback" / "day1.csv").write_text(filled, encoding="utf-8-sig")
+    p.run(day, count=1)
+    perf = p.db.performance("history_en")
+    assert perf and perf[0]["views"] == 4200 and perf[0]["video_id"] == "ABCDEFGHIJK"
+
     # idempotent: a second run plans nothing new and changes nothing
     p.run(day, count=1)
     assert len(p.db.jobs(publish_date=day.isoformat())) == 1

@@ -3,6 +3,7 @@
 id: space_en
 name: "Cosmic Scale"
 enabled: true
+platform: youtube_shorts   # youtube_shorts | tiktok | instagram_reels
 language: en
 niche_slug: space            # storage folder: space/<language>/<date>/...
 niche: "Mind-bending space and physics facts, made intuitive with cinematic visuals"
@@ -77,6 +78,10 @@ schedule:
     - {days: 14, per_day: 3}
     - {days: 21, per_day: 6}
     - {per_day: 10}
+research:
+  youtube_queries: ["space facts shorts", "universe facts", "black hole", "astronomy shorts"]
+  region: US
+  rss: []                  # e.g. space agency news feeds (RSS/Atom URLs)
 youtube:
   channel_id: null
   project: default

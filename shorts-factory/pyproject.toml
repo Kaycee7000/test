@@ -35,6 +35,7 @@ gpu = [
   "protobuf",
   "ftfy",
   "faster-whisper>=1.2",
+  "sentence-transformers>=3",  # knowledge-base embeddings (bge-m3)
   "kokoro>=0.9.4",
   "soundfile",
   "imageio",

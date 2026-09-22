@@ -18,7 +18,7 @@ def _draft(lines, title="The ship that sailed itself", moods="dark_ambient"):
         title=title, headline="It sailed alone", hook_type="shocking_fact",
         scenes=[SceneDraft(narration=l, visual="v", motion="zoom_in", emphasis=[]) for l in lines],
         description="d", hashtags=["#history", "ships", "x", "y"], tags=["a"] * 5, pinned_comment="?",
-        music_mood=moods, fact_claims=["c"],
+        music_mood=moods, fact_claims=["c"], sources=[],
     )
 
 

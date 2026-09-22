@@ -104,26 +104,26 @@ class ScriptWriter:
         self.llm = llm
         self.cfg = cfg
 
-    def fact_check(self, ch: ChannelCfg, claims: list[str], cache: dict[str, str]) -> list[str]:
+    def fact_check(self, ch: ChannelCfg, claims: list[str], cache: dict[str, str], notes: str = "") -> list[str]:
         """Verify claims not seen before (cache: normalized claim -> verdict); return open problems."""
         todo = list(dict.fromkeys(c.strip() for c in claims if c.strip() and c.strip().lower() not in cache))
         if todo:
-            text = self.llm.research(prompts.factcheck_system(), prompts.factcheck_user(todo),
-                                     context={"channel": ch.id})
+            text = self.llm.research(prompts.factcheck_system(), prompts.factcheck_user(todo, notes),
+                                     context={"channel": ch.id, "kind": "factcheck"})
             for c, verdict in parse_factcheck(text, todo).items():
                 cache[c.lower()] = verdict
         wanted = {c.strip().lower() for c in claims}
         return [v for k, v in cache.items() if k in wanted and v != "OK"]
 
     def write(self, ch: ChannelCfg, fmt_id: str, topic: dict, learnings: str,
-              recent_titles: list[str]) -> ScriptResult:
+              recent_titles: list[str], research: str = "") -> ScriptResult:
         fmt = ch.format(fmt_id)
         system = prompts.writer_system(ch)
         lo, hi = ch.target_words
         ctx = {"channel": ch.id, "topic": topic["title"], "words_target": (lo + hi) // 2,
                "music_moods": ch.music_moods}
         draft = normalize(self.llm.structured(
-            system, prompts.writer_user(ch, fmt, topic, learnings, recent_titles), ScriptDraft,
+            system, prompts.writer_user(ch, fmt, topic, learnings, recent_titles, research), ScriptDraft,
             effort=self.cfg.effort, context=ctx), ch)
 
         fc_cache: dict[str, str] = {}
@@ -131,7 +131,7 @@ class ScriptWriter:
         critique: Critique | None = None
         for rnd in range(self.cfg.max_rewrites + 1):
             issues = lint(draft, ch, recent_titles)
-            fact_problems = self.fact_check(ch, draft.fact_claims, fc_cache) if ch.fact_check else []
+            fact_problems = self.fact_check(ch, draft.fact_claims, fc_cache, research) if ch.fact_check else []
             critique = self.llm.structured(
                 prompts.critic_system(ch), prompts.critic_user(ch, fmt, draft, issues, fact_problems),
                 Critique, effort=self.cfg.critic_effort, context=ctx)
@@ -152,6 +152,6 @@ class ScriptWriter:
                 break
             fixes = issues + fact_problems + critique.issues
             draft = normalize(self.llm.structured(
-                system, prompts.rewrite_user(ch, fmt, draft, fixes), ScriptDraft,
+                system, prompts.rewrite_user(ch, fmt, draft, fixes, research), ScriptDraft,
                 effort=self.cfg.effort, context=ctx), ch)
         return ScriptResult(False, draft, critique, rnd + 1, notes)

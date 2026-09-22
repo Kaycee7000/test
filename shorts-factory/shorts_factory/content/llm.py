@@ -133,7 +133,7 @@ class MockLLM:
                 TopicIdea(title=f"The {things[i % len(things)]} of {places[i % len(places)]} ({1800 + 7 * i})",
                           angle="An unexpected twist nobody saw coming", format=fmts[i % len(fmts)],
                           keywords=[things[i % len(things)], places[i % len(places)].lower(), str(1800 + 7 * i)],
-                          priority=10 - i % 10)
+                          priority=10 - i % 10, trend_ref="evergreen")
                 for i in range(int(ctx.get("n", 5)))
             ])  # type: ignore[return-value]
         if schema is ScriptDraft:
@@ -145,7 +145,14 @@ class MockLLM:
         raise LLMError(f"mock has no fixture for {schema.__name__}")
 
     def research(self, system: str, user: str, context: dict[str, Any] | None = None) -> str:
-        nums = re.findall(r"^(\d+)\.\s+", user, flags=re.M)
+        ctx = context or {}
+        self.usage["requests"] += 1
+        if ctx.get("kind") == "dossier":
+            title = (ctx.get("topic") or {}).get("title", "topic")
+            return (f"## Core story\n{title}: a mock dossier for offline runs.\n## Verified facts\n"
+                    "1. The event is documented in local records. [source: https://example.org/record]\n"
+                    "## Sources\n- https://example.org/record: Example Archive")
+        nums = re.findall(r"^(\d+)\.\s+", user.split("Claims to verify:")[-1], flags=re.M)
         return "\n".join(f"{n} | OK" for n in nums)
 
     def _script(self, ctx: dict[str, Any]) -> ScriptDraft:
@@ -187,6 +194,7 @@ class MockLLM:
             pinned_comment="What do you think the four words were?",
             music_mood=ctx.get("music_moods", ["cinematic"])[0],
             fact_claims=["A village vanished in 1908."],
+            sources=["https://example.org/record"],
         )
 
 

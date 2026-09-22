@@ -91,6 +91,23 @@ render:
   loudness_lufs: -14     # YouTube normalizes to about -14 LUFS
   transition_sfx: true
 
+research:
+  enabled: true
+  embedder: auto         # auto = local model if installed, else full-text search only | local | hash | none
+  embed_model: BAAI/bge-m3   # multilingual (EN + ES channels); ~2 GB, freed before the GPU stages
+  # Public sources only; nothing here touches the posting team's channels.
+  scout_sources: [youtube, wikipedia_trending, on_this_day, rss]
+  youtube_lookback_days: 14
+  youtube_max_queries: 4 # per channel/day; public search costs 100 quota units each (key: YOUTUBE_API_KEY)
+  youtube_retention_days: 30   # YouTube API data is purged after 30 days (API Services policy)
+  wikipedia: true        # pull the Wikipedia article for each topic as the dossier's starting point
+  dossier: true          # Claude + web search writes a sourced research dossier for every video
+  retrieve_k: 6
+  topic_similarity: 0.86
+  user_agent: "shorts-factory/0.1 (research bot; set a contact URL here)"   # Wikimedia requires a descriptive UA
+  feedback_prefix: feedback/   # posting team drops performance CSVs here
+  backup_to_storage: true
+
 publish:
   mode: storage          # storage = deliver finished videos to B2 (below); youtube | dry_run are optional
   secrets_dir: secrets

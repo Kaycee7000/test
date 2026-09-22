@@ -19,6 +19,8 @@ class TopicIdea(BaseModel):
         description="3-6 SPECIFIC keywords naming the story's people, places, events, objects and years, "
                     "lowercase; never generic words like history, mystery, facts, money or space")
     priority: int = Field(description="Estimated viral potential 1-10 for this audience, be harsh")
+    trend_ref: str = Field(description="The demand signal that inspired it (a trending video, article, anniversary "
+                                       "or headline), or 'evergreen'")
 
 
 class TopicBatch(BaseModel):
@@ -47,6 +49,8 @@ class ScriptDraft(BaseModel):
     pinned_comment: str = Field(description="A question that sparks debate in the comments, max 140 chars")
     music_mood: str = Field(description="One of the channel's allowed music moods")
     fact_claims: list[str] = Field(description="Every checkable factual claim in the narration, one per item")
+    sources: list[str] = Field(description="Up to 5 source URLs from the research dossier that support the narration, "
+                                           "most important first; empty if none were provided")
 
 
 class Critique(BaseModel):

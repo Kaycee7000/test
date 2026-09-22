@@ -2,6 +2,7 @@
 id: history_en
 name: "Untold History"           # working name; pick a brandable one before creating the channel
 enabled: true
+platform: youtube_shorts   # youtube_shorts | tiktok | instagram_reels
 language: en
 niche_slug: history            # storage folder: history/<language>/<date>/...
 niche: "Untold history: the strangest TRUE moments, blunders and mysteries of the past"
@@ -96,6 +97,11 @@ schedule:
     - {days: 14, per_day: 3}   # weeks 1-2: find the formats that stick
     - {days: 21, per_day: 6}   # weeks 3-5: double down on winners
     - {per_day: 12}            # steady state
+research:
+  youtube_queries: ["history shorts", "untold history", "history mystery", "dark history facts"]
+  region: US
+  on_this_day: true        # anniversaries of the publish date become timely hooks
+  rss: []                  # e.g. history news feeds you trust (RSS/Atom URLs)
 youtube:
   channel_id: null         # e.g. UCxxxx — uploads abort if the OAuth token is for another channel
   project: default

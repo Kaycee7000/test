@@ -4,6 +4,7 @@
 id: money_en
 name: "Billion Dollar Blunders"
 enabled: true
+platform: youtube_shorts   # youtube_shorts | tiktok | instagram_reels
 language: en
 niche_slug: money            # storage folder: money/<language>/<date>/...
 niche: "True stories of fortunes made and lost, business blunders and the psychology of money"
@@ -80,6 +81,10 @@ schedule:
     - {days: 14, per_day: 3}
     - {days: 21, per_day: 6}
     - {per_day: 10}
+research:
+  youtube_queries: ["business story shorts", "billion dollar mistake", "how companies make money", "money psychology"]
+  region: US
+  rss: []                  # e.g. business news feeds (RSS/Atom URLs)
 youtube:
   channel_id: null
   project: default

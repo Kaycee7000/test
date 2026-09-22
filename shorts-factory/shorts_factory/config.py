@@ -142,6 +142,27 @@ class PublishCfg(BaseModel):
     require_approval: bool = False  # human editorial gate: only `shorts approve`d videos upload
 
 
+class ResearchCfg(BaseModel):
+    """Autonomous research: public trend scouting + per-topic dossiers stored in a RAG knowledge base."""
+    enabled: bool = True
+    kb_path: str = "knowledge.db"  # inside workdir
+    embedder: Literal["auto", "local", "hash", "none"] = "auto"  # auto: local model if installed, else full-text only
+    embed_model: str = "BAAI/bge-m3"  # multilingual; runs on the pod GPU (or CPU)
+    embed_device: str | None = None
+    scout_sources: list[str] = Field(default_factory=lambda: ["youtube", "wikipedia_trending", "on_this_day", "rss"])
+    youtube_lookback_days: int = 14
+    youtube_max_queries: int = 4  # per channel per day; search.list costs 100 quota units per call
+    youtube_results_per_query: int = 25
+    youtube_retention_days: int = 30  # YouTube API data is deleted after this (API Services policy)
+    wikipedia: bool = True  # fetch the Wikipedia article for each topic as a dossier starting point
+    dossier: bool = True  # Claude + web search builds a sourced research dossier per video
+    retrieve_k: int = 6
+    topic_similarity: float = 0.86  # semantic duplicate threshold (only with a semantic embedder)
+    user_agent: str = "shorts-factory/0.1 (research bot; set research.user_agent to include a contact URL)"
+    feedback_prefix: str = "feedback/"  # the posting team drops performance CSVs here in storage
+    backup_to_storage: bool = True  # copy shorts.db + knowledge.db to storage after each run
+
+
 class Settings(BaseModel):
     workdir: str = "data"
     assets_dir: str = "assets"
@@ -155,6 +176,7 @@ class Settings(BaseModel):
     render: RenderCfg = RenderCfg()
     publish: PublishCfg = PublishCfg()
     storage: StorageCfg = StorageCfg()
+    research: ResearchCfg = ResearchCfg()
 
     # Resolved at load time so relative paths work from any cwd.
     root: str = "."
@@ -181,6 +203,9 @@ class Settings(BaseModel):
         s.animate.enabled = False
         s.publish.mode = "storage"
         s.storage.provider = "local"
+        s.research.embedder = "hash"
+        s.research.scout_sources = ["mock"]
+        s.research.wikipedia = False
         return s
 
 
@@ -230,6 +255,14 @@ class VoiceCfg(BaseModel):
     exaggeration: float | None = None
 
 
+class ChannelResearchCfg(BaseModel):
+    youtube_queries: list[str] = Field(default_factory=list)  # public YouTube search terms; default: pillars
+    region: str = "US"  # YouTube regionCode for trend search
+    wikipedia_lang: str | None = None  # default: channel language
+    on_this_day: bool = False  # anniversaries of the publish date (history channels)
+    rss: list[str] = Field(default_factory=list)  # niche news feeds (RSS or Atom URLs)
+
+
 class YouTubeCfg(BaseModel):
     channel_id: str | None = None  # expected channel; uploads abort if the token belongs to another
     token_file: str | None = None  # defaults to <secrets_dir>/<channel id>.token.json
@@ -245,6 +278,7 @@ class ChannelCfg(BaseModel):
     enabled: bool = True
     language: str = "en"
     niche_slug: str | None = None  # storage folder that groups channels of the same niche
+    platform: str = "youtube_shorts"  # youtube_shorts | tiktok | instagram_reels (see content/platforms.py)
     niche: str
     audience: str
     brief: str
@@ -259,6 +293,7 @@ class ChannelCfg(BaseModel):
     fact_check: bool = True
     voice: VoiceCfg = VoiceCfg()
     schedule: ScheduleCfg = ScheduleCfg()
+    research: ChannelResearchCfg = ChannelResearchCfg()
     youtube: YouTubeCfg = YouTubeCfg()
 
     def format(self, fid: str) -> FormatCfg:

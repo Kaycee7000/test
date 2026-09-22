@@ -4,6 +4,7 @@
 id: history_es
 name: "Historia Oculta"
 enabled: true
+platform: youtube_shorts   # youtube_shorts | tiktok | instagram_reels
 language: es
 niche_slug: history            # storage folder: history/<language>/<date>/...
 niche: "Historia oculta: los momentos más extraños y reales del pasado"
@@ -88,6 +89,11 @@ schedule:
     - {days: 14, per_day: 3}
     - {days: 21, per_day: 6}
     - {per_day: 10}
+research:
+  youtube_queries: ["historia shorts", "historia oculta", "misterios de la historia", "datos históricos"]
+  region: MX
+  on_this_day: true
+  rss: []
 youtube:
   channel_id: null
   project: default

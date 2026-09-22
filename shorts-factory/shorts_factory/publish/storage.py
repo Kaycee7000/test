@@ -68,6 +68,7 @@ def post_kit(ch: ChannelCfg, job: Any, script: dict[str, Any], data: dict[str, A
         "language": ch.language,
         "channel": ch.id,
         "channel_name": ch.name,
+        "platform": ch.platform,
         "format": job["format"],
         "hook_type": job["hook_type"],
         "title": script.get("title"),
@@ -81,6 +82,8 @@ def post_kit(ch: ChannelCfg, job: Any, script: dict[str, Any], data: dict[str, A
         if slot else None,
         "timezone": ch.schedule.timezone,
         "duration_s": data.get("duration"),
+        "sources": script.get("sources", []),  # research sources; worth listing in the description
+        "trend_ref": (data.get("topic") or {}).get("trend_ref"),
         "music_track": data.get("music"),  # keep for licence records
         "ai_disclosure": AI_NOTE,
         "critic_scores": {k: v for k, v in crit.items() if k.endswith("_score")},
@@ -96,6 +99,8 @@ class Store(Protocol):
     def put_bytes(self, data: bytes, key: str, content_type: str) -> None: ...
     def url(self, key: str) -> str | None: ...
     def check(self) -> str: ...
+    def list(self, prefix: str) -> list[tuple[str, str]]: ...
+    def get(self, key: str) -> bytes: ...
 
 
 class B2Store:
@@ -149,6 +154,16 @@ class B2Store:
         self.s3.head_bucket(Bucket=self.bucket)
         return f"b2://{self.bucket}"
 
+    def list(self, prefix: str) -> list[tuple[str, str]]:
+        """(key, etag) for every object under prefix."""
+        out = []
+        for page in self.s3.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=prefix):
+            out += [(o["Key"], o.get("ETag", "").strip('"')) for o in page.get("Contents", [])]
+        return out
+
+    def get(self, key: str) -> bytes:
+        return self.s3.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+
 
 class LocalStore:
     """Same layout on local disk: offline runs, tests, or syncing with rclone yourself."""
@@ -174,6 +189,14 @@ class LocalStore:
     def check(self) -> str:
         self.root.mkdir(parents=True, exist_ok=True)
         return str(self.root)
+
+    def list(self, prefix: str) -> list[tuple[str, str]]:
+        base = self.root / prefix
+        files = [p for p in base.rglob("*") if p.is_file()] if base.exists() else []
+        return [(str(p.relative_to(self.root)), f"{p.stat().st_size}-{int(p.stat().st_mtime)}") for p in sorted(files)]
+
+    def get(self, key: str) -> bytes:
+        return (self.root / key).read_bytes()
 
 
 def make_store(s: Settings) -> Store:
@@ -205,7 +228,10 @@ def cleanup_local(jdir: Path, mode: str) -> None:
 
 
 MANIFEST_COLUMNS = ["suggested_post_time_local", "title", "video", "download_url", "description",
-                    "pinned_comment", "duration_s", "format", "hook_type", "channel", "id"]
+                    "pinned_comment", "duration_s", "format", "hook_type", "channel", "id",
+                    # filled in by the posting team ~48 h after posting, then dropped into feedback/
+                    "posted_url", "posted_at", "views", "avg_view_pct", "likes", "comments", "shares",
+                    "subscribers_gained"]
 
 
 def write_manifests(store: Store, s: Settings, db: DB, channels: dict[str, ChannelCfg],
