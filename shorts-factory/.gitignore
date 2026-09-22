@@ -1,0 +1,20 @@
+# runtime state
+data/
+secrets/
+*.token.json
+client_secret*.json
+.env
+secrets.env
+
+# downloaded / licensed media (fetch or add locally; never commit licensed tracks)
+assets/fonts/*.ttf
+assets/music/**/*.*
+assets/sfx/**/*.*
+assets/voices/*.*
+!assets/**/README.md
+
+# python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/

@@ -1,0 +1,103 @@
+# FLAGSHIP CHANNEL — see docs/NICHE_STRATEGY.md for why this niche ranks #1.
+id: history_en
+name: "Untold History"           # working name; pick a brandable one before creating the channel
+enabled: true
+language: en
+niche: "Untold history: the strangest TRUE moments, blunders and mysteries of the past"
+audience: >
+  Curious adults 18-54 in the US, UK, Canada and Australia who binge documentaries, true stories
+  and history podcasts. Roughly 65/35 male/female. They reward specificity and punish vagueness.
+brief: >
+  Cinematic, fact-checked micro-documentaries. Each Short is ONE astonishing true story told like a
+  thriller by a confident narrator at a campfire: precise, slightly ominous, never cheesy, never
+  lecturing. Concrete names, places, years and numbers in every video. The viewer should finish with
+  one fact they will repeat to a friend tonight. We never fabricate quotes, never present legends as
+  fact (we say "legend says" when it is a legend), and we would rather be accurate than dramatic.
+pillars:
+  - Bizarre but true events
+  - Catastrophic decisions and blunders
+  - Unsolved mysteries and lost things
+  - Daily life in the past (weird, gross, surprising)
+  - Myths people still believe
+  - Forgotten heroes, villains and inventors
+banned:
+  - Graphic gore or torture detail
+  - Contemporary partisan politics
+  - Conspiracy theories presented as fact
+  - Identifiable real victims of recent tragedies
+  - Genocide denial or trivialization
+  - Medical advice
+formats:
+  - id: untold_story
+    name: The Untold Story
+    weight: 1.4
+    description: One astonishing true event most people have never heard of, told as a 45-second thriller.
+    structure: >
+      Hook with the single most shocking verified detail (no context yet) -> one line of context
+      (who, where, when) -> 2-3 escalation beats, each adding a new twist -> payoff that re-frames the
+      hook -> final line that flows back into the first line so the loop feels seamless.
+  - id: worst_decision
+    name: History's Worst Decisions
+    weight: 1.2
+    description: A single decision that seemed reasonable at the time and went spectacularly wrong.
+    structure: >
+      Hook stating the absurd cost/outcome -> the moment of the decision and why it looked smart ->
+      the chain reaction, beat by beat -> the final cost in concrete numbers -> ironic loop line.
+  - id: what_happened_next
+    name: What Happened Next
+    weight: 1.0
+    description: The bizarre, little-known aftermath of a famous event everyone thinks they know.
+    structure: >
+      Hook on the famous event with a twist ("everyone knows X, nobody talks about what happened
+      next") -> quick reminder of the known part -> the strange aftermath in escalating beats ->
+      the most surprising final fact -> loop line.
+  - id: unsolved
+    name: Still Unsolved
+    weight: 1.0
+    description: A real unsolved mystery with the strongest evidence laid out like a case file.
+    structure: >
+      Hook on the impossible detail -> the facts of the case -> clue 1, clue 2, clue 3 (each a
+      mini-reveal) -> the leading theory and why it does not fully work -> open question that loops.
+  - id: myth_vs_reality
+    name: Myth vs Reality
+    weight: 0.8
+    description: A widely believed history "fact" that is wrong, and the stranger truth behind it.
+    structure: >
+      Hook stating the myth as if true, then "except it never happened" -> where the myth came from
+      -> the actual evidence -> the truth, which is weirder than the myth -> loop line.
+  - id: life_in
+    name: You Wouldn't Survive
+    weight: 0.9
+    description: Second-person immersion into daily life in a specific time and place.
+    structure: >
+      Hook "You wake up in <place, year>..." with a visceral detail -> 3-4 escalating realities of
+      daily life, each more surprising -> the detail that would end you -> loop line.
+visual_style: >
+  cinematic historical oil painting, dramatic chiaroscuro lighting, rich textured brushwork,
+  muted earthy palette with deep shadows and warm candle-like highlights, volumetric light,
+  subtle film grain, highly detailed, vertical 9:16 composition, main subject in the upper two thirds
+negative_prompt: >
+  text, letters, words, caption, watermark, logo, signature, modern objects, blurry, lowres,
+  deformed hands, extra fingers, distorted face, cartoon, anime, 3d render
+music_moods: [dark_ambient, mystery, epic]
+target_seconds: 45
+words_per_second: 2.6
+fact_check: true
+voice:
+  chatterbox_ref: assets/voices/history_en.wav   # record/licence 10-20s of your signature narrator
+  kokoro_voice: bm_george
+schedule:
+  timezone: America/New_York
+  windows: ["07:00-09:30", "11:30-14:00", "16:30-22:30"]
+  min_gap_minutes: 45
+  launch_date: null        # set to your first upload date; drives the ramp below
+  ramp:
+    - {days: 14, per_day: 3}   # weeks 1-2: find the formats that stick
+    - {days: 21, per_day: 6}   # weeks 3-5: double down on winners
+    - {per_day: 12}            # steady state
+youtube:
+  channel_id: null         # e.g. UCxxxx — uploads abort if the OAuth token is for another channel
+  project: default
+  category_id: "27"        # Education
+  contains_synthetic_media: true
+  made_for_kids: false

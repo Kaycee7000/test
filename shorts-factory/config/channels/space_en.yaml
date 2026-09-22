@@ -1,0 +1,84 @@
+# VISUAL SPECTACLE CHANNEL — space & physics. Best fit for AI visuals, evergreen, globally
+# watchable, and clearly educational (strong defence under the inauthentic-content policy).
+id: space_en
+name: "Cosmic Scale"
+enabled: true
+language: en
+niche: "Mind-bending space and physics facts, made intuitive with cinematic visuals"
+audience: >
+  Curious teens and adults 16-45 worldwide who watch science explainers, space documentaries and
+  "what if" content. Global English audience, strong in the US, India, UK, Philippines.
+brief: >
+  Awe-first science storytelling. Each Short takes ONE real astronomical or physics fact and makes
+  the viewer FEEL its scale with a vivid comparison anchored in everyday life (football fields,
+  grains of sand, a road trip). Accurate to current scientific consensus: say "scientists think"
+  when something is a hypothesis, and never inflate numbers for drama. Tone: excited but precise,
+  like a great teacher who still finds this stuff unbelievable.
+pillars:
+  - Scale comparisons that break your brain
+  - The strangest objects in the universe
+  - What would happen if...
+  - Real space missions and near-disasters
+  - Physics made intuitive
+banned:
+  - Pseudoscience, astrology or flat-earth content presented as plausible
+  - Unverified UFO/alien claims presented as fact
+  - Doomsday fear-mongering with fake dates
+formats:
+  - id: scale_shock
+    name: Scale Shock
+    weight: 1.3
+    description: One size/distance/time comparison that makes an abstract number visceral.
+    structure: >
+      Hook with the unbelievable comparison -> the object and the raw number -> zoom-out beats,
+      each comparison bigger than the last -> final comparison that lands the awe -> loop line.
+  - id: what_if
+    name: What If
+    weight: 1.2
+    description: A physically grounded "what would happen if" scenario, second by second.
+    structure: >
+      Hook with the scenario in second person -> the first second -> escalating consequences on a
+      timeline -> the final outcome -> loop line.
+  - id: weird_object
+    name: The Weirdest Thing Out There
+    weight: 1.1
+    description: A real, bizarre object (planet, star, black hole, cloud) and why it breaks intuition.
+    structure: >
+      Hook on its most impossible property -> what and where it is -> 2-3 escalating weird facts ->
+      what it teaches us -> loop line.
+  - id: mission_story
+    name: Mission Story
+    weight: 0.9
+    description: A true space mission moment with real stakes, told like a thriller.
+    structure: >
+      Hook at the moment of maximum danger -> the mission setup -> the problem -> the improvised
+      fix or the loss -> the legacy -> loop line.
+visual_style: >
+  photorealistic cinematic space art, astrophotography aesthetic, deep true blacks, vivid nebula
+  colors, volumetric god rays, epic sense of scale, ultra detailed, IMAX film still, vertical 9:16
+  composition, main subject in the upper two thirds
+negative_prompt: >
+  text, letters, words, caption, watermark, logo, signature, blurry, lowres, cartoon, anime,
+  deformed hands, extra fingers, distorted face
+music_moods: [space_ambient, epic, wonder]
+target_seconds: 42
+words_per_second: 2.6
+fact_check: true
+voice:
+  chatterbox_ref: assets/voices/space_en.wav
+  kokoro_voice: am_fenrir
+schedule:
+  timezone: America/New_York
+  windows: ["07:00-09:00", "12:00-14:00", "17:00-23:00"]
+  min_gap_minutes: 50
+  launch_date: null
+  ramp:
+    - {days: 14, per_day: 3}
+    - {days: 21, per_day: 6}
+    - {per_day: 10}
+youtube:
+  channel_id: null
+  project: default
+  category_id: "28"        # Science & Technology
+  contains_synthetic_media: true
+  made_for_kids: false

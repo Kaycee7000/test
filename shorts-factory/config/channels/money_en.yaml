@@ -1,0 +1,87 @@
+# HIGH-RPM CHANNEL — business & money stories. Finance-adjacent audiences carry the highest ad
+# rates on YouTube, and this channel is the best funnel for long-form, newsletter or affiliate
+# revenue. Stories and psychology only: never personal financial advice.
+id: money_en
+name: "Billion Dollar Blunders"
+enabled: true
+language: en
+niche: "True stories of fortunes made and lost, business blunders and the psychology of money"
+audience: >
+  Ambitious adults 18-44 in the US, UK, Canada and Australia interested in business, investing,
+  entrepreneurship and self-improvement. High purchasing power, high advertiser demand.
+brief: >
+  Sharp, cinematic business storytelling. Each Short dissects ONE real company decision, fortune,
+  collapse or money-psychology effect with hard numbers and a clear "so what" the viewer can apply
+  to their own thinking. Tone: a smart friend who worked on Wall Street explaining it over a drink:
+  confident, witty, zero hype. We do not give personalized financial advice, pick stocks or
+  predict prices; we explain what happened and why.
+pillars:
+  - Billion-dollar business mistakes
+  - How famous companies actually make money
+  - Money psychology and cognitive biases
+  - Fortunes made, lost and remade
+  - Economic history moments that shaped today
+banned:
+  - Personalized financial advice or "you should buy/sell"
+  - Specific stock, crypto or price predictions
+  - Get-rich-quick claims or income promises
+  - Gambling or trading-platform promotion
+  - Defamatory claims about living people (stick to documented facts)
+formats:
+  - id: blunder
+    name: Billion Dollar Blunder
+    weight: 1.4
+    description: One corporate decision that cost a fortune, told as a tragedy in fast beats.
+    structure: >
+      Hook with the jaw-dropping cost -> the company at its peak -> the decision and the logic
+      behind it -> the unravelling in 2-3 beats with numbers -> the lesson in one line -> loop line.
+  - id: how_they_earn
+    name: How They Actually Make Money
+    weight: 1.1
+    description: The surprising real business model behind a famous brand.
+    structure: >
+      Hook contradicting what everyone assumes -> what people think the business is -> the real
+      money machine, revealed step by step with numbers -> why it works -> loop line.
+  - id: money_bias
+    name: The Money Trap
+    weight: 1.0
+    description: A cognitive bias that quietly costs people money, proven with a real story or study.
+    structure: >
+      Hook with a scenario the viewer is in -> the experiment/story that exposed the bias -> the
+      mechanism in plain words -> one-line takeaway (educational, not advice) -> loop line.
+  - id: rags_riches_ruin
+    name: Rags, Riches, Ruin
+    weight: 1.0
+    description: A real person's fortune arc with the one decision that changed everything.
+    structure: >
+      Hook with the peak or the fall -> the humble start -> the rise in fast beats -> the turning
+      point -> where they ended up -> loop line.
+visual_style: >
+  cinematic photorealistic editorial photography, moody corporate noir, high contrast, teal and
+  amber color grade, shallow depth of field, 35mm film look, dramatic rim light, vertical 9:16
+  composition, main subject in the upper two thirds
+negative_prompt: >
+  text, letters, words, numbers, caption, watermark, logo, brand logo, signature, blurry, lowres,
+  deformed hands, extra fingers, distorted face, cartoon, anime
+music_moods: [tension, corporate_dark, cinematic]
+target_seconds: 42
+words_per_second: 2.7
+fact_check: true
+voice:
+  chatterbox_ref: assets/voices/money_en.wav
+  kokoro_voice: am_michael
+schedule:
+  timezone: America/New_York
+  windows: ["06:30-09:00", "12:00-13:30", "17:00-22:00"]
+  min_gap_minutes: 50
+  launch_date: null
+  ramp:
+    - {days: 14, per_day: 3}
+    - {days: 21, per_day: 6}
+    - {per_day: 10}
+youtube:
+  channel_id: null
+  project: default
+  category_id: "27"
+  contains_synthetic_media: true
+  made_for_kids: false
