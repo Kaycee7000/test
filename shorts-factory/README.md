@@ -35,6 +35,7 @@ posting time, and the AI-disclosure reminder.
 | **Trends** | Once a day per channel, Claude runs a live web search for what the niche's audience is into right now (news, releases, anniversaries, viral stories). The brief goes into the topic prompt, and a few fresh trend-driven ideas jump the queue so they're made while timely |
 | **Writing** | Claude (`claude-opus-5`, adaptive thinking, structured outputs) writes for its target platform (YouTube Shorts, TikTok or Reels rules); a critic scores hook/retention/clarity/payoff/originality, a fact-checker verifies every claim, and weak drafts are rewritten or replaced |
 | **Voice** | Chatterbox (MIT, expressive, voice cloning, 23 languages) · Kokoro (Apache-2.0, fast) · ElevenLabs (API) |
+| **Music** | `shorts music` generates an instrumental library per mood on the GPU with ACE-Step 1.5 (MIT; commercial use of the output allowed), or drop in licensed tracks; mix both freely |
 | **Visuals** | Z-Image-Turbo by default (Apache-2.0); any diffusers model (FLUX.1-dev, Qwen-Image…). Optional Wan 2.2 image-to-video for the hook |
 | **Edit** | Sub-pixel smooth camera moves, crossfades, word-by-word highlighted captions, a headline card, sidechain-ducked music, transition whooshes, loudness normalization |
 | **Delivery** | Backblaze B2 (S3-compatible API, size-verified uploads) grouped `niche/language/date`, a post kit per video, a daily manifest with 7-day download links, local cleanup after upload. Direct YouTube upload remains available (`publish.mode: youtube`) |
@@ -57,6 +58,7 @@ On RunPod, see [docs/RUNPOD_GUIDE.md](docs/RUNPOD_GUIDE.md):
 bash scripts/runpod_bootstrap.sh
 python scripts/prefetch_models.py
 shorts doctor
+shorts music                                                           # one-time AI music library
 shorts make --channel history_en --topic "The Great Emu War of 1932"   # tune on single videos first
 shorts run --date tomorrow                                             # a full day for every channel
 ```
@@ -71,6 +73,7 @@ licensing, and what to watch in analytics.
 |---|---|
 | `shorts init` | Create folders and the database |
 | `shorts doctor` | Check ffmpeg/libass, fonts, GPU, TTS venv, API key, voices, music, OAuth tokens |
+| `shorts music [--moods a,b] [--count N]` | Generate AI background music until each mood folder holds N tracks |
 | `shorts trends --channel ID [--refresh]` | Show today's trend brief (Claude web search; runs it if needed) |
 | `shorts feedback pull` / `shorts feedback import FILE` | Import the posting team's performance CSVs |
 | `shorts topics --channel ID [--count 60] [--show]` | Grow or list a channel's topic backlog |

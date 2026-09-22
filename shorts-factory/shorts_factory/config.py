@@ -81,6 +81,22 @@ class AnimateCfg(BaseModel):
     device: str = "cuda"
 
 
+class MusicCfg(BaseModel):
+    """AI background-music library (`shorts music`). ACE-Step 1.5 is MIT-licensed and its authors allow
+    commercial use of the output; it pins torch 2.10, so it runs from its own checkout + venv."""
+    backend: Literal["acestep", "mock"] = "acestep"
+    python: str | None = None  # defaults to <acestep_dir>/.venv/bin/python (scripts/setup_music.sh)
+    acestep_dir: str = "/workspace/ACE-Step-1.5"  # weights download into <acestep_dir>/checkpoints
+    dit_model: str = "acestep-v15-turbo"
+    lm_model: str | None = "acestep-5Hz-lm-1.7B"  # composition planner; None = skip it (faster, plainer)
+    lm_backend: Literal["vllm", "pt"] = "vllm"
+    inference_steps: int = 8
+    tracks_per_mood: int = 20
+    seconds: int = 75  # longer than any Short, so each video can start at a different point
+    prompts: dict[str, str] = Field(default_factory=dict)  # mood -> caption, overrides the built-in table
+    device: str = "cuda"
+
+
 class CaptionCfg(BaseModel):
     font: str = "Anton"
     size: int = 124
@@ -161,6 +177,7 @@ class Settings(BaseModel):
     align: AlignCfg = AlignCfg()
     images: ImageCfg = ImageCfg()
     animate: AnimateCfg = AnimateCfg()
+    music: MusicCfg = MusicCfg()
     captions: CaptionCfg = CaptionCfg()
     render: RenderCfg = RenderCfg()
     publish: PublishCfg = PublishCfg()
@@ -190,6 +207,7 @@ class Settings(BaseModel):
         s.align.backend = "mock"
         s.images.backend = "mock"
         s.animate.enabled = False
+        s.music.backend = "mock"
         s.publish.mode = "storage"
         s.storage.provider = "local"
         return s

@@ -55,6 +55,8 @@ Monthly ballpark at 42/day (check current RunPod and Anthropic pricing):
    shorts doctor
    ```
 4. Add your assets: `assets/voices/<channel>.wav`, `assets/music/<mood>/…`, `assets/sfx/whoosh/…` (read the READMEs there: licensing matters).
+   For music, `shorts music` generates the whole library on the GPU (ACE-Step 1.5; its weights download on the first run
+   and the command logs real per-track timings). Try `shorts music --moods epic --count 3` and listen before a full run.
 5. First videos: `shorts make --channel history_en --topic "The Great Emu War of 1932"`, then open `data/jobs/<today>/…/final.mp4` in Jupyter. Tune `visual_style`, voice `exaggeration` and caption settings until you love it.
 6. Set up Backblaze B2 (below) and check `shorts doctor` shows `storage (b2)` green.
 
