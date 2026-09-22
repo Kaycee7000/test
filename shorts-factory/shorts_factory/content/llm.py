@@ -27,7 +27,8 @@ class LLM(Protocol):
     def structured(self, system: str, user: str, schema: type[T], effort: str | None = None,
                    context: dict[str, Any] | None = None) -> T: ...
 
-    def research(self, system: str, user: str, context: dict[str, Any] | None = None) -> str: ...
+    def research(self, system: str, user: str, context: dict[str, Any] | None = None,
+                 max_uses: int | None = None) -> str: ...
 
 
 class AnthropicLLM:
@@ -93,10 +94,12 @@ class AnthropicLLM:
         except ValueError as e:
             raise LLMError(f"invalid {schema.__name__} output: {e}") from e
 
-    def research(self, system: str, user: str, context: dict[str, Any] | None = None) -> str:
+    def research(self, system: str, user: str, context: dict[str, Any] | None = None,
+                 max_uses: int | None = None) -> str:
         """Single request with Anthropic's server-side web search; loops on pause_turn."""
         messages: list[dict[str, Any]] = [{"role": "user", "content": user}]
-        tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": self.cfg.web_search_max_uses}]
+        tools = [{"type": "web_search_20260209", "name": "web_search",
+                  "max_uses": max_uses or self.cfg.web_search_max_uses}]
         for _ in range(4):
             resp = self.client.beta.messages.create(
                 **self._common("medium"), system=system, messages=messages, tools=tools,
@@ -127,13 +130,20 @@ class MockLLM:
         self.usage["requests"] += 1
         if schema is TopicBatch:
             fmts = ctx.get("formats", ["mock"])
-            places = ["Lisbon", "Kyoto", "Cairo", "Oslo", "Lima", "Quebec", "Tangier", "Riga", "Perth", "Nairobi"]
-            things = ["lighthouse", "bank vault", "circus", "train", "observatory", "brewery", "zeppelin", "canal"]
+            timely = bool(ctx.get("timely"))
+            if timely:
+                places = ["Petra", "Pompeii", "Troy", "Angkor", "Machu Picchu"]
+                things = ["lost archive", "buried shipwreck", "sealed tomb", "comet sighting", "secret tunnel"]
+            else:
+                places = ["Lisbon", "Kyoto", "Cairo", "Oslo", "Lima", "Quebec", "Tangier", "Riga", "Perth", "Nairobi"]
+                things = ["lighthouse", "bank vault", "circus", "train", "observatory", "brewery", "zeppelin", "canal"]
+            base = 1500 if timely else 1800
             return TopicBatch(ideas=[
-                TopicIdea(title=f"The {things[i % len(things)]} of {places[i % len(places)]} ({1800 + 7 * i})",
+                TopicIdea(title=f"The {things[i % len(things)]} of {places[i % len(places)]} ({base + 7 * i})",
                           angle="An unexpected twist nobody saw coming", format=fmts[i % len(fmts)],
-                          keywords=[things[i % len(things)], places[i % len(places)].lower(), str(1800 + 7 * i)],
-                          priority=10 - i % 10, trend_ref="evergreen")
+                          keywords=[things[i % len(things)], places[i % len(places)].lower(), str(base + 7 * i)],
+                          priority=10 - i % 10,
+                          trend_ref="A new documentary about a lost city" if timely else "evergreen")
                 for i in range(int(ctx.get("n", 5)))
             ])  # type: ignore[return-value]
         if schema is ScriptDraft:
@@ -144,14 +154,15 @@ class MockLLM:
                             issues=[], verdict="publish")  # type: ignore[return-value]
         raise LLMError(f"mock has no fixture for {schema.__name__}")
 
-    def research(self, system: str, user: str, context: dict[str, Any] | None = None) -> str:
+    def research(self, system: str, user: str, context: dict[str, Any] | None = None,
+                 max_uses: int | None = None) -> str:
         ctx = context or {}
         self.usage["requests"] += 1
-        if ctx.get("kind") == "dossier":
-            title = (ctx.get("topic") or {}).get("title", "topic")
-            return (f"## Core story\n{title}: a mock dossier for offline runs.\n## Verified facts\n"
-                    "1. The event is documented in local records. [source: https://example.org/record]\n"
-                    "## Sources\n- https://example.org/record: Example Archive")
+        if ctx.get("kind") == "trends":
+            return ("- A new documentary about a lost city | premiered this week | the detail the film left out "
+                    "| [source: https://example.org/doc]\n"
+                    "- Anniversary of a famous shipwreck | 7 days away | what the survivors saw first "
+                    "| [source: https://example.org/ship]")
         nums = re.findall(r"^(\d+)\.\s+", user.split("Claims to verify:")[-1], flags=re.M)
         return "\n".join(f"{n} | OK" for n in nums)
 
@@ -194,7 +205,6 @@ class MockLLM:
             pinned_comment="What do you think the four words were?",
             music_mood=ctx.get("music_moods", ["cinematic"])[0],
             fact_claims=["A village vanished in 1908."],
-            sources=["https://example.org/record"],
         )
 
 

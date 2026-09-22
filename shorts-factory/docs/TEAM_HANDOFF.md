@@ -4,8 +4,8 @@ Two separate operations with one shared bucket between them.
 
 | | Content system (this repo) | YouTube team |
 |---|---|---|
-| Owns | Research, scripts, voice, visuals, editing, QC | Channels, posting, thumbnails, comments, community, analytics |
-| Access | Anthropic, a YouTube **API key** for public data, write access to the bucket | Channel logins, read access to the bucket, write access to `feedback/` only |
+| Owns | Trends, scripts, voice, visuals, editing, QC | Channels, posting, thumbnails, comments, community, analytics |
+| Access | Anthropic API (incl. web search), write access to the bucket | Channel logins, read access to the bucket, write access to `feedback/` only |
 | Never touches | Channel accounts, OAuth, Studio | The pipeline, the GPU pod |
 
 ## What the team receives (every morning)
@@ -19,16 +19,15 @@ Two separate operations with one shared bucket between them.
 ```
 
 The **post kit** (`.json`) has: `title`, `description` (hashtags included), `tags`, `pinned_comment` (a question to
-pin), `suggested_post_time_local` + `timezone`, `sources` (research links worth adding under "Sources:"),
-`platform`, `format`, `hook_type`, `trend_ref` (what demand signal inspired it), `music_track` (keep for licence
-records), and `ai_disclosure`.
+pin), `suggested_post_time_local` + `timezone`, `platform`, `format`, `hook_type`, `trend_ref` (the trend it rides,
+or "evergreen"), `music_track` (keep for licence records), and `ai_disclosure`.
 
 `_manifest.csv` opens in Google Sheets or Excel, with a 7-day download link per video.
 
 ## Posting checklist (per video)
 
 1. Upload the `.mp4` as a Short to the channel for that niche + language.
-2. Paste title, description and tags from the post kit. Add the sources line if the description has room.
+2. Paste title, description and tags from the post kit.
 3. **Turn on "Altered or synthetic content"** (AI narration and imagery).
 4. Audience: not made for kids. Post at the suggested time (±30 min is fine).
 5. Pin the `pinned_comment` question once it is live.

@@ -85,8 +85,7 @@ PACKAGING:
 - Allowed music moods: {", ".join(ch.music_moods)}."""
 
 
-def writer_user(ch: ChannelCfg, fmt: FormatCfg, topic: dict, learnings: str, recent_titles: list[str],
-                research: str = "") -> str:
+def writer_user(ch: ChannelCfg, fmt: FormatCfg, topic: dict, learnings: str, recent_titles: list[str]) -> str:
     recent = _bullets(recent_titles[:40])
     return f"""Write one Short.
 
@@ -94,8 +93,7 @@ FORMAT: {fmt.id} ({fmt.name})
 TOPIC: {topic["title"]}
 ANGLE: {topic.get("angle", "")}
 KEYWORDS: {", ".join(topic.get("keywords", []))}
-
-{research or "RESEARCH: none provided. Use only facts you are certain of."}
+{f"WHY NOW: {topic['trend_ref']}" if topic.get("trend_ref") and topic["trend_ref"] != "evergreen" else ""}
 
 {learnings or "CHANNEL PERFORMANCE: no data yet. Optimise for the retention rules."}
 
@@ -103,9 +101,8 @@ ALREADY PUBLISHED ON THIS CHANNEL (never repeat these stories, hooks or titles):
 {recent}"""
 
 
-def rewrite_user(ch: ChannelCfg, fmt: FormatCfg, draft: ScriptDraft, fixes: list[str], research: str = "") -> str:
-    notes = f"{research}\n\n" if research else ""
-    return f"""{notes}Here is your draft for format {fmt.id} ({fmt.name}):
+def rewrite_user(ch: ChannelCfg, fmt: FormatCfg, draft: ScriptDraft, fixes: list[str]) -> str:
+    return f"""Here is your draft for format {fmt.id} ({fmt.name}):
 
 {draft.model_dump_json(indent=1)}
 
@@ -165,12 +162,8 @@ primary sources. Reply with one line per claim and nothing else, in exactly one 
 <n> | UNSURE | <why it cannot be verified>"""
 
 
-def factcheck_user(claims: list[str], notes: str = "") -> str:
-    head = ""
-    if notes:
-        head = ("Research notes already gathered for this video (with sources). Use them, and search the web "
-                "only for claims they don't settle:\n" + notes[:6000] + "\n\n")
-    return head + "Claims to verify:\n" + "\n".join(f"{i + 1}. {c}" for i, c in enumerate(claims))
+def factcheck_user(claims: list[str]) -> str:
+    return "Claims to verify:\n" + "\n".join(f"{i + 1}. {c}" for i, c in enumerate(claims))
 
 
 def topics_system(ch: ChannelCfg) -> str:
@@ -184,16 +177,22 @@ in 45 seconds without prior knowledge; visual; not already beaten to death by bi
 a genuinely fresh angle if it is famous)."""
 
 
-def topics_user(ch: ChannelCfg, n: int, existing: list[str], learnings: str, trends: str = "") -> str:
+def topics_user(ch: ChannelCfg, n: int, existing: list[str], learnings: str, trends: str = "",
+                timely: bool = False) -> str:
     total = sum(f.weight for f in ch.formats)
     mix = ", ".join(f"{f.id} ~{round(n * f.weight / total)}" for f in ch.formats)
-    trend_block = f"""DEMAND SIGNALS (researched today from public data):
+    if timely and trends:
+        how = ("EVERY idea must connect to one of these trends: the story itself, the history behind it, or a "
+               "surprising related fact. Set trend_ref to the trend it rides.")
+    else:
+        how = ("Mix roughly one third timely ideas (tied to a trend) with two thirds evergreen ideas, and set "
+               "trend_ref to the trend, or 'evergreen'.")
+    trend_block = f"""WHAT'S TRENDING (live web search today):
 {trends}
 
-How to use them: they show which subjects, questions and emotions audiences want right now. Ride the
-demand with a story or angle nobody in that list told; NEVER remake a competitor's video. Mix roughly
-one third timely ideas (tied to a signal) with two thirds evergreen ideas, and set trend_ref accordingly.
-""" if trends else "DEMAND SIGNALS: none today; set trend_ref to 'evergreen'.\n"
+Ride the demand with a true story or angle the audience hasn't seen; never remake someone else's video.
+{how}
+""" if trends else "WHAT'S TRENDING: nothing today; set trend_ref to 'evergreen'.\n"
     return f"""Generate {n} new topic ideas. Format mix (approximate): {mix}.
 Use only these format ids: {", ".join(f.id for f in ch.formats)}.
 Spread ideas across the content pillars, eras, regions and themes. Be harsh with priority scores.

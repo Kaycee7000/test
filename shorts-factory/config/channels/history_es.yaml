@@ -89,11 +89,11 @@ schedule:
     - {days: 14, per_day: 3}
     - {days: 21, per_day: 6}
     - {per_day: 10}
-research:
-  youtube_queries: ["historia shorts", "historia oculta", "misterios de la historia", "datos históricos"]
-  region: MX
-  on_this_day: true
-  rss: []
+trend_focus:              # what the daily web search looks for
+  - películas, series y documentales históricos nuevos
+  - descubrimientos arqueológicos en América Latina y España
+  - aniversarios de los próximos 7 días
+  - historias de historia virales en redes en español
 youtube:
   channel_id: null
   project: default

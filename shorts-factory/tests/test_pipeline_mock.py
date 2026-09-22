@@ -51,12 +51,11 @@ def test_full_day_mock_run(project: Path):
     assert 15 <= float(info["format"]["duration"]) <= 59.5
     assert "#" in kit["description"]
 
-    # research layer: trend signals scouted, a sourced dossier per video, the script stored for future RAG
-    assert (jdir / "research.md").read_text().startswith("## Core story")
-    assert kit["sources"] == ["https://example.org/record"] and kit["platform"] == "youtube_shorts"
-    stats = p.kb.stats()["docs"]
-    assert stats.get("trend_video") and stats.get("dossier") == 1 and stats.get("script") == 1
-    assert (out / "_system" / "backups").exists()  # shorts.db + knowledge.db snapshots
+    # trends: one web-searched brief per channel per day, fresh trend ideas jump the queue
+    brief = p.db.trend_brief("history_en", day.isoformat())
+    assert brief and "documentary" in brief["brief"] and brief["topics_added"]
+    assert kit["trend_ref"] == "A new documentary about a lost city" and kit["platform"] == "youtube_shorts"
+    assert list((out / "_system" / "backups").rglob("shorts.db"))
     header = manifest.splitlines()[0]
     assert "posted_url" in header and "avg_view_pct" in header  # columns the posting team fills in
 

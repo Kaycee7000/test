@@ -17,7 +17,7 @@ Rough per-video numbers for a 45 s Short with 13 scenes on an L40S. `shorts make
 
 | Stage | Where | Per video | 42 videos/day |
 |---|---|---|---|
-| Scout + research dossiers | Public APIs + Claude web search, 6 in parallel | 1-2 min wall | ~10-15 min |
+| Trend brief | Claude web search, once per channel | ~1 min | ~5 min |
 | Script: write, fact-check, critique, rewrite | Claude API, 6 in parallel | 2-4 min wall | ~15-25 min |
 | Voice (Chatterbox) | GPU | 20-40 s | ~15-30 min |
 | Word timings (Whisper large-v3) | GPU | ~5 s | ~3 min |
@@ -30,7 +30,7 @@ Rough per-video numbers for a 45 s Short with 13 scenes on an L40S. `shorts make
 Monthly ballpark at 42/day (check current RunPod and Anthropic pricing):
 - GPU: L40S ~2 h/day ≈ $50-70/mo. H100 with animation ≈ $400-600/mo.
 - Network volume (150 GB) ≈ $10/mo.
-- Claude API: roughly **$0.40-0.90 per published video** on `claude-opus-5` (research dossier, writer, critic, fact-check and rewrites), about $500-1,100/mo at 42/day. It's usually the biggest line item. Levers, in order: `web_search_max_uses: 3`; `max_rewrites: 1`; `llm.model: claude-sonnet-5` (about 60% cheaper; measure the quality change on 20 scripts first). Every run prints actual token usage and an estimated cost.
+- Claude API: roughly **$0.30-0.70 per published video** on `claude-opus-5` (writer, critic, web fact-check and rewrites) plus a few cents per channel per day for the trend search, about $400-850/mo at 42/day. It's usually the biggest line item. Levers, in order: `web_search_max_uses: 3`; `max_rewrites: 1`; `llm.model: claude-sonnet-5` (about 60% cheaper; measure the quality change on 20 scripts first). Every run prints actual token usage and an estimated cost.
 
 ## Setup (≈ 30 minutes)
 
@@ -43,7 +43,6 @@ Monthly ballpark at 42/day (check current RunPod and Anthropic pricing):
    bash scripts/runpod_bootstrap.sh          # ffmpeg, both venvs, fonts, database
    cat > /workspace/secrets.env <<'EOF'
    ANTHROPIC_API_KEY=sk-ant-...
-   YOUTUBE_API_KEY=...                       # public trend research only (docs/RESEARCH.md); no channel access
    B2_KEY_ID=...                             # Backblaze application key (see "Backblaze B2" below)
    B2_APPLICATION_KEY=...
    HF_TOKEN=hf_...                           # only needed for gated models like FLUX.1-dev

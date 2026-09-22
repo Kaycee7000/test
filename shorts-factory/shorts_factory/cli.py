@@ -20,9 +20,7 @@ from .db import DB
 from .pipeline import STAGES, Pipeline
 
 app = typer.Typer(add_completion=False, help="Quality-gated YouTube Shorts factory.")
-kb_app = typer.Typer(help="Inspect the research knowledge base (RAG).")
 feedback_app = typer.Typer(help="Import performance data from the posting team.")
-app.add_typer(kb_app, name="kb")
 app.add_typer(feedback_app, name="feedback")
 console = Console()
 
@@ -121,17 +119,6 @@ def doctor() -> None:
             from .publish.youtube import token_path
             tp = token_path(s, ch)
             rows.append((f"{ch.id} OAuth token", tp.exists(), str(tp)))
-    if s.research.enabled:
-        yt = bool(os.environ.get("YOUTUBE_API_KEY"))
-        rows.append(("YOUTUBE_API_KEY (public trend research)", yt,
-                     "set" if yt else "optional: Cloud Console → APIs → YouTube Data API v3 → API key"))
-        if s.research.embedder in ("auto", "local"):
-            try:
-                import sentence_transformers  # noqa: F401
-                rows.append(("embeddings", True, s.research.embed_model))
-            except ImportError:
-                rows.append(("embeddings", s.research.embedder != "local",
-                             "sentence-transformers not installed: full-text retrieval only"))
     if s.publish.mode == "storage":
         from .publish.storage import make_store
         try:
@@ -156,11 +143,8 @@ def topics(
     p = _pipeline(channel)
     ch = p.channels[channel]
     if not show:
-        from .research.scout import trend_brief
-
-        on = p.s.research.enabled
-        n = generate_topics(p.llm, p.db, ch, count, trends=trend_brief(p.kb, p.s, ch) if on else "",
-                            kb=p.kb if on else None, similarity=p.s.research.topic_similarity)
+        brief = p.db.trend_brief(ch.id, (date.today() + timedelta(days=1)).isoformat())
+        n = generate_topics(p.llm, p.db, ch, count, trends=brief["brief"] if brief else "")
         console.print(f"[green]{n}[/] new topics for {channel}")
     t = Table("id", "format", "priority", "title", "status")
     for r in p.db.topics(channel)[:80]:
@@ -250,52 +234,18 @@ def report(channel: str = typer.Option(..., "--channel")) -> None:
 
 
 @app.command()
-def scout(
-    channels: Optional[str] = typer.Option(None, "--channels"),
+def trends(
+    channel: str = typer.Option(..., "--channel"),
     day: str = typer.Option("tomorrow", "--date"),
-    force: bool = typer.Option(False, "--force", help="Re-scout even if already done for this date"),
+    refresh: bool = typer.Option(False, "--refresh", help="Search again even if today's brief exists"),
 ) -> None:
-    """Collect public trend signals (YouTube search, Wikipedia, RSS) into the knowledge base."""
-    p = _pipeline(channels)
-    p.stage_scout(_day(day), force=force)
-    console.print(p.kb.stats())
-
-
-@app.command()
-def trends(channel: str = typer.Option(..., "--channel")) -> None:
-    """Show the demand signals the topic strategist will see for a channel."""
-    from .research.scout import trend_brief
+    """Show (and create if needed) the channel's trend brief: Claude's live web search of the niche."""
+    from .content.trends import daily_brief
 
     p = _pipeline(channel)
-    console.print(trend_brief(p.kb, p.s, p.channels[channel]) or "[dim]no signals yet: run `shorts scout`[/]")
-
-
-@kb_app.command("search")
-def kb_search(
-    query: str,
-    niche: Optional[str] = typer.Option(None, "--niche"),
-    language: Optional[str] = typer.Option(None, "--language"),
-    kind: Optional[str] = typer.Option(None, "--kind", help="e.g. dossier, wiki_article, script, trend_video"),
-    k: int = typer.Option(8, "-k"),
-) -> None:
-    """Hybrid (full-text + semantic) search over everything the system has researched."""
-    p = _pipeline()
-    t = Table("score", "kind", "title", "text")
-    for h in p.kb.search(query, k=k, niche=niche, language=language, kinds=[kind] if kind else None):
-        t.add_row(f"{h.score:.3f}", h.kind, h.title[:50], h.text[:110].replace("\n", " "))
-    console.print(t)
-
-
-@kb_app.command("stats")
-def kb_stats() -> None:
-    """Document counts per kind, chunk and embedding counts."""
-    console.print(_pipeline().kb.stats())
-
-
-@kb_app.command("reindex")
-def kb_reindex() -> None:
-    """Recompute all embeddings (after changing research.embed_model)."""
-    console.print(f"re-embedded {_pipeline().kb.reindex()} chunks")
+    brief = daily_brief(p.llm, p.db, p.channels[channel], _day(day), p.s.trends, refresh=refresh)
+    console.print(brief or "[dim]no trends found (see the log)[/]")
+    _print_usage(p)
 
 
 @feedback_app.command("import")
@@ -315,7 +265,7 @@ def feedback_pull() -> None:
     from .publish.storage import make_store
 
     p = _pipeline()
-    done = import_from_store(make_store(p.s), p.s.research.feedback_prefix, p.db)
+    done = import_from_store(make_store(p.s), p.s.storage.feedback_prefix, p.db)
     console.print(f"imported {len(done)} file(s): {done}; {summary(p.db)}")
 
 

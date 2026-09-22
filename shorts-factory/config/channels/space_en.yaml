@@ -78,10 +78,11 @@ schedule:
     - {days: 14, per_day: 3}
     - {days: 21, per_day: 6}
     - {per_day: 10}
-research:
-  youtube_queries: ["space facts shorts", "universe facts", "black hole", "astronomy shorts"]
-  region: US
-  rss: []                  # e.g. space agency news feeds (RSS/Atom URLs)
+trend_focus:              # what the daily web search looks for
+  - space missions, launches and discoveries in the news
+  - sky events in the next 7 days (eclipses, meteor showers)
+  - new space films, series and documentaries
+  - space facts going viral on social media
 youtube:
   channel_id: null
   project: default

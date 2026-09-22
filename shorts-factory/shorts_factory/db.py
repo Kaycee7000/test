@@ -11,7 +11,7 @@ from typing import Any, Iterator
 
 # Linear job lifecycle. A stage moves jobs from STATES[i-1] to STATES[i].
 STATES = [
-    "planned", "researched", "scripted", "voiced", "aligned", "imaged", "animated", "rendered", "ready", "uploaded",
+    "planned", "scripted", "voiced", "aligned", "imaged", "animated", "rendered", "ready", "uploaded",
 ]
 TERMINAL = {"failed", "rejected"}
 
@@ -53,6 +53,15 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE INDEX IF NOT EXISTS jobs_state ON jobs(state);
 CREATE INDEX IF NOT EXISTS jobs_channel_date ON jobs(channel, publish_date);
 
+CREATE TABLE IF NOT EXISTS trend_briefs (
+    channel TEXT NOT NULL,
+    day TEXT NOT NULL,              -- publish date the brief was made for
+    brief TEXT NOT NULL,
+    topics_added INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (channel, day)
+);
+
 CREATE TABLE IF NOT EXISTS metrics (
     video_id TEXT NOT NULL,
     fetched_at TEXT NOT NULL,
@@ -84,6 +93,8 @@ class DB:
         if "trend_ref" not in cols:
             with self.conn:
                 self.conn.execute("ALTER TABLE topics ADD COLUMN trend_ref TEXT")
+        with self.conn:  # the retired research stage used a 'researched' state
+            self.conn.execute("UPDATE jobs SET state='planned' WHERE state='researched'")
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:
@@ -196,6 +207,20 @@ class DB:
             (channel, limit),
         ).fetchall()
         return [r[0] for r in rows]
+
+    # ------------------------------------------------------------ trends
+
+    def trend_brief(self, channel: str, day: str) -> sqlite3.Row | None:
+        return self.conn.execute("SELECT * FROM trend_briefs WHERE channel=? AND day=?", (channel, day)).fetchone()
+
+    def save_trend_brief(self, channel: str, day: str, brief: str) -> None:
+        with self.tx() as c:
+            c.execute("INSERT OR REPLACE INTO trend_briefs(channel, day, brief, topics_added, created_at) "
+                      "VALUES (?,?,?,0,?)", (channel, day, brief, now_iso()))
+
+    def mark_trend_topics(self, channel: str, day: str, n: int) -> None:
+        with self.tx() as c:
+            c.execute("UPDATE trend_briefs SET topics_added=? WHERE channel=? AND day=?", (n, channel, day))
 
     # ------------------------------------------------------------ metrics
 

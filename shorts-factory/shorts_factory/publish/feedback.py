@@ -1,6 +1,6 @@
 """Performance feedback from the posting team, with no access to their channels.
 
-The team drops CSVs into the storage `feedback/` folder (research.feedback_prefix). Two shapes work:
+The team drops CSVs into the storage `feedback/` folder (storage.feedback_prefix). Two shapes work:
   1. the daily `_manifest.csv` with its empty columns filled in (id, posted_url, views, avg_view_pct, ...),
   2. a YouTube Studio analytics export ("Content", "Video title", "Views", "Average percentage viewed (%)", ...).
 Rows are matched to jobs by id, then by YouTube video id, then by fuzzy title. Matched rows land in the

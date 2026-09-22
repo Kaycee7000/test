@@ -49,8 +49,6 @@ class ScriptDraft(BaseModel):
     pinned_comment: str = Field(description="A question that sparks debate in the comments, max 140 chars")
     music_mood: str = Field(description="One of the channel's allowed music moods")
     fact_claims: list[str] = Field(description="Every checkable factual claim in the narration, one per item")
-    sources: list[str] = Field(description="Up to 5 source URLs from the research dossier that support the narration, "
-                                           "most important first; empty if none were provided")
 
 
 class Critique(BaseModel):

@@ -81,10 +81,11 @@ schedule:
     - {days: 14, per_day: 3}
     - {days: 21, per_day: 6}
     - {per_day: 10}
-research:
-  youtube_queries: ["business story shorts", "billion dollar mistake", "how companies make money", "money psychology"]
-  region: US
-  rss: []                  # e.g. business news feeds (RSS/Atom URLs)
+trend_focus:              # what the daily web search looks for
+  - business news people are talking about (collapses, comebacks, big bets)
+  - viral money and career debates
+  - anniversaries of famous business moments in the next 7 days
+  - new business films, books and documentaries
 youtube:
   channel_id: null
   project: default

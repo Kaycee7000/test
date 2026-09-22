@@ -82,7 +82,6 @@ def post_kit(ch: ChannelCfg, job: Any, script: dict[str, Any], data: dict[str, A
         if slot else None,
         "timezone": ch.schedule.timezone,
         "duration_s": data.get("duration"),
-        "sources": script.get("sources", []),  # research sources; worth listing in the description
         "trend_ref": (data.get("topic") or {}).get("trend_ref"),
         "music_track": data.get("music"),  # keep for licence records
         "ai_disclosure": AI_NOTE,

@@ -74,7 +74,7 @@ def test_refusal_raises(fake_api):
 
 def test_research_uses_web_search_tool(fake_api):
     fake_api.reply = _message("1 | OK")
-    assert AnthropicLLM(LLMCfg(fallbacks=False)).research("s", "1. claim") == "1 | OK"
+    assert AnthropicLLM(LLMCfg(fallbacks=False)).research("s", "1. claim", max_uses=3) == "1 | OK"
     _, body = fake_api.captured[0]
-    assert body["tools"][0]["type"] == "web_search_20260209"
+    assert body["tools"][0]["type"] == "web_search_20260209" and body["tools"][0]["max_uses"] == 3
     assert "fallbacks" not in body

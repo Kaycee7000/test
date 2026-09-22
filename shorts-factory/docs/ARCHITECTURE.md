@@ -2,16 +2,12 @@
 
 ```mermaid
 flowchart LR
-    subgraph research[Research · public data only]
-      S1[Scout: YouTube public search,<br/>Wikipedia most-read, on-this-day, RSS] --> KB[(Knowledge base<br/>FTS5 + embeddings)]
-    end
+    TR[Daily trend brief<br/>Claude + live web search] --> C
     subgraph plan[Plan]
       A[Ramp target per channel] --> B[Thompson-sampled formats]
       B --> C[Topic backlog<br/>demand signals + semantic dedup]
       C --> D[Jobs + suggested post slots]
     end
-    KB --> C
-    D --> DS[Dossier per video<br/>Wikipedia + Claude web search] --> KB
     subgraph script[Script · Claude API, parallel]
       E[Writer] --> F[Lint + web fact-check]
       F --> G[Critic scores]
@@ -25,10 +21,8 @@ flowchart LR
     subgraph cpu[Render · CPU pool]
       L[Camera motion + crossfades] --> M[ASS captions] --> N[Ducked music, SFX,<br/>-14 LUFS]
     end
-    DS --> E
-    KB -- related notes + past videos --> E
+    D --> E
     G -- pass --> H
-    G -- approved script --> KB
     K --> L
     N --> O[QC] --> P{Approval gate}
     P --> Q[B2 storage<br/>niche/language/date<br/>+ post kit + manifest]
@@ -41,7 +35,7 @@ flowchart LR
 
 1. **Stage-batched, not video-by-video.** Each GPU model loads once per day's batch instead of 50 times. Stages run in order; within a stage, work runs in bulk.
 2. **GPU stages are subprocess workers** (`shorts_factory/workers/*_worker.py`) that take a JSON manifest. VRAM is fully released between stages, a model crash can't kill the orchestrator, and a stage can use a different venv. Chatterbox pins `torch==2.6`/`diffusers==0.29`, so it gets its own; the TTS worker imports only the stdlib and numpy for that reason.
-3. **Idempotent state machine.** SQLite (`data/shorts.db`) holds each job's state: `planned → researched → scripted → voiced → aligned → imaged → animated → rendered → ready → uploaded` (or `rejected` / `failed`). A stage only picks up jobs in its input state; per-scene outputs that already exist are skipped. Re-running any command resumes.
+3. **Idempotent state machine.** SQLite (`data/shorts.db`) holds each job's state: `planned → scripted → voiced → aligned → imaged → animated → rendered → ready → uploaded` (or `rejected` / `failed`). A stage only picks up jobs in its input state; per-scene outputs that already exist are skipped. Re-running any command resumes.
 4. **Quality gates at every step.** Script: lint, fact-check, critic thresholds, up to N rewrites, reject and replace. Voice: pacing sanity check with re-synthesis. Duration: auto tempo-fit or reject. Render: QC on resolution, duration, audio level. Publish: optional human approval.
 5. **Deterministic seeds** (`crc32` of job id + scene) so a re-render reproduces the same images and music choice.
 6. **Everything mockable.** `--mock` swaps every model and API for local stand-ins while the real workers, renderer, ffmpeg mix and scheduler run. The test suite renders real MP4s this way.
@@ -53,11 +47,7 @@ flowchart LR
 | `shorts_factory/config.py` | Typed settings and channel configs (pydantic) + env overrides |
 | `shorts_factory/db.py` | SQLite schema, job states, metrics |
 | `shorts_factory/pipeline.py` | Orchestrator: every stage + `render_job` for the process pool |
-| `research/kb.py` | Knowledge base: SQLite + FTS5 + embeddings, hybrid retrieval, retention, backups |
-| `research/embed.py` | Embedding backends (bge-m3 via sentence-transformers; hash for tests) |
-| `research/collectors.py` | Public-data collectors: YouTube (API key), Wikipedia, RSS |
-| `research/scout.py` | Daily scouting per channel and the trend brief for the strategist |
-| `research/dossier.py` | Per-video research dossier and the writer's retrieval context |
+| `content/trends.py` | Daily trend brief: one Claude call with web search per channel, cached per day |
 | `content/platforms.py` | What each destination platform rewards (YouTube Shorts, TikTok, Reels) |
 | `publish/feedback.py` | Imports the posting team's CSVs (filled manifest or Studio export) into metrics |
 | `content/llm.py` | Claude client (structured outputs, adaptive thinking, refusal fallback, web search) + mock |
@@ -79,7 +69,6 @@ flowchart LR
 
 ```
 data/jobs/2026-09-23/history_en/20260923-history_en-1a2b3c/
-  research.md            the sourced research dossier
   script.json            final approved script (or script.rejected.json with critic notes)
   voice/scene_XX.wav     per-scene narration (trimmed, padded, tempo-fitted)
   voice.wav              full narration

@@ -9,7 +9,6 @@ from rapidfuzz import fuzz
 
 from ..config import ChannelCfg
 from ..db import DB
-from ..research.kb import KnowledgeBase
 from . import prompts
 from .llm import LLM
 from .schemas import TopicBatch
@@ -53,37 +52,23 @@ def dedupe(ideas: list[dict[str, Any]], existing: list[tuple[str, list[str]]],
 
 
 def generate_topics(llm: LLM, db: DB, ch: ChannelCfg, n: int = 60, trends: str = "",
-                    kb: KnowledgeBase | None = None, similarity: float = 0.86) -> int:
+                    timely: bool = False, boost: float = 0.0) -> int:
+    """Grow the backlog. timely=True asks for ideas that all ride today's trends; `boost` lifts their priority
+    so they are made while still fresh."""
     existing = [(r["title"], json.loads(r["keywords"])) for r in db.topics(ch.id)]
     batch = llm.structured(
         prompts.topics_system(ch),
-        prompts.topics_user(ch, n, [t for t, _ in existing], learnings_text(db.performance(ch.id)), trends),
+        prompts.topics_user(ch, n, [t for t, _ in existing], learnings_text(db.performance(ch.id)), trends, timely),
         TopicBatch,
-        context={"channel": ch.id, "n": n, "formats": [f.id for f in ch.formats]},
+        context={"channel": ch.id, "n": n, "formats": [f.id for f in ch.formats], "timely": timely},
     )
     ideas = [i.model_dump() for i in batch.ideas]
     kept = dedupe(ideas, existing, {f.id for f in ch.formats})
-    if kb is not None:
-        kept = semantic_dedupe(kb, ch, kept, similarity)
+    for i in kept:
+        i["priority"] = float(i.get("priority", 5)) + boost
     db.add_topics(ch.id, kept)
-    log.info("%s: %d ideas generated, %d new after dedupe", ch.id, len(ideas), len(kept))
+    log.info("%s: %d %sideas generated, %d new after dedupe", ch.id, len(ideas), "trend " if timely else "", len(kept))
     return len(kept)
-
-
-def semantic_dedupe(kb: KnowledgeBase, ch: ChannelCfg, ideas: list[dict[str, Any]], threshold: float) -> list[dict[str, Any]]:
-    """Drop ideas whose meaning matches a topic or script we already have, including ideas accepted earlier in
-    this same batch. Every kept idea is indexed so future batches are checked against it too."""
-    kept = []
-    for i in ideas:
-        text = f"{i['title']}. {i.get('angle', '')}"
-        hit = kb.most_similar(text, ["topic", "script"], ch.folder, ch.language)  # None without a semantic embedder
-        if hit and hit[0] >= threshold:
-            log.debug("%s: drop %r (%.2f similar to %r)", ch.id, i["title"], hit[0], hit[1])
-            continue
-        kept.append(i)
-        kb.add("topic", ch.folder, ch.language, i["title"], text, platform=ch.platform,
-               meta={"format": i["format"], "trend_ref": i.get("trend_ref")}, key=f"topic:{ch.id}:{i['title']}")
-    return kept
 
 
 def pick_topic(db: DB, ch: ChannelCfg, fmt: str, taken: set[int]) -> dict[str, Any] | None:

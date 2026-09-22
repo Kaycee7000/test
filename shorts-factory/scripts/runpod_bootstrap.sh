@@ -43,7 +43,6 @@ Done. Add to ~/.bashrc (or $WS/secrets.env, which scripts/daily_run.sh sources):
   export ANTHROPIC_API_KEY=...        # console.anthropic.com
   export B2_KEY_ID=...                # Backblaze application key for the delivery bucket
   export B2_APPLICATION_KEY=...
-  export YOUTUBE_API_KEY=...          # public trend research only (an API key, no channel access)
   export HF_TOKEN=...                 # only for gated models (e.g. FLUX.1-dev)
   source $WS/venvs/main/bin/activate
 
