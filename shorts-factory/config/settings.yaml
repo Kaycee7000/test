@@ -65,6 +65,19 @@ animate:
   max_area: 399360       # 480x832
   cpu_offload: true      # set false on 80 GB cards
 
+music:
+  # AI background music: `shorts music` fills assets/music/<mood>/ once; every render then picks from those
+  # folders (generated and licensed tracks can be mixed). ACE-Step 1.5: MIT licence, commercial use of the
+  # output allowed. Own venv (pins torch 2.10): bash scripts/setup_music.sh
+  backend: acestep       # acestep | mock
+  acestep_dir: /workspace/ACE-Step-1.5
+  dit_model: acestep-v15-turbo    # acestep-v15-sft: higher quality, slower (use inference_steps: 32+)
+  lm_model: acestep-5Hz-lm-1.7B   # plans each track's structure; null = skip it (faster, plainer)
+  tracks_per_mood: 20
+  seconds: 75            # longer than any Short, so each video starts at a different point in the track
+  # prompts:             # override a mood's style, e.g.
+  #   epic: "epic orchestral underscore, war drums, low brass, relentless"
+
 captions:
   font: Anton
   size: 124

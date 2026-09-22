@@ -33,7 +33,7 @@ def resolve_python(configured: str | None, required: bool) -> str:
     if configured and required:
         raise WorkerError(
             f"worker interpreter {configured!r} not found. Run scripts/runpod_bootstrap.sh "
-            f"(creates the isolated TTS venv) or set tts.python in config/settings.yaml."
+            f"(creates the isolated TTS and music venvs) or fix the `python` path in config/settings.yaml."
         )
     return sys.executable
 

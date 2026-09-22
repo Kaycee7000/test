@@ -107,6 +107,10 @@ def doctor() -> None:
     if s.tts.backend == "chatterbox":
         ok = bool(s.tts.python and Path(s.tts.python).exists())
         rows.append(("chatterbox venv", ok, s.tts.python or "unset"))
+    if s.music.backend == "acestep":
+        from .media.musicgen import acestep_python
+        py = acestep_python(s)
+        rows.append(("music generator (ACE-Step)", Path(py).exists(), py if Path(py).exists() else "bash scripts/setup_music.sh"))
     if s.llm.provider == "anthropic":
         rows.append(("ANTHROPIC_API_KEY", bool(os.environ.get("ANTHROPIC_API_KEY")), "export it or use `ant auth login`"))
     for ch in load_channels(s):
@@ -114,7 +118,8 @@ def doctor() -> None:
             p = s.path(ch.voice.chatterbox_ref)
             rows.append((f"{ch.id} voice ref", p.exists(), str(p) if p.exists() else f"missing {p} (built-in voice used)"))
         music = [m for m in ch.music_moods if any((s.assets / "music" / m).glob("*.*"))]
-        rows.append((f"{ch.id} music", bool(music), f"{len(music)}/{len(ch.music_moods)} moods stocked"))
+        hint = "" if len(music) == len(ch.music_moods) else "; `shorts music` generates the rest"
+        rows.append((f"{ch.id} music", bool(music), f"{len(music)}/{len(ch.music_moods)} moods stocked{hint}"))
         if s.publish.mode == "youtube" and not state.mock:
             from .publish.youtube import token_path
             tp = token_path(s, ch)
@@ -246,6 +251,29 @@ def trends(
     brief = daily_brief(p.llm, p.db, p.channels[channel], _day(day), p.s.trends, refresh=refresh)
     console.print(brief or "[dim]no trends found (see the log)[/]")
     _print_usage(p)
+
+
+@app.command()
+def music(
+    moods: Optional[str] = typer.Option(None, "--moods", help="Comma-separated moods (default: every mood the channels use)"),
+    count: Optional[int] = typer.Option(None, "--count", help="Tracks each mood folder should hold (default: music.tracks_per_mood)"),
+) -> None:
+    """Generate AI background music on the GPU until every mood folder in assets/music is stocked."""
+    from .media.musicgen import LOG_NAME, build_library, library_moods
+    from .media.workers import WorkerError
+
+    s = _settings()
+    wanted = [m.strip() for m in moods.split(",") if m.strip()] if moods else library_moods(load_channels(s))
+    try:
+        made, errors = build_library(s, wanted, count or s.music.tracks_per_mood)
+    except WorkerError as e:
+        console.print(f"[red]{e}[/]")
+        raise typer.Exit(1)
+    console.print(f"[green]{made}[/] new tracks in {s.assets / 'music'} (licence log: {LOG_NAME})")
+    for e in errors:
+        console.print(f"[red]failed[/] {e}")
+    if errors:
+        raise typer.Exit(1)
 
 
 @feedback_app.command("import")

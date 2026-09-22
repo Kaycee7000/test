@@ -30,6 +30,9 @@ fi
 "$WS/venvs/tts/bin/pip" install -q -U pip
 "$WS/venvs/tts/bin/pip" install -q -r requirements/tts-chatterbox.txt
 
+echo "==> AI music generator (ACE-Step 1.5 pins torch 2.10)"
+bash scripts/setup_music.sh || echo "    music generator setup failed (only \`shorts music\` needs it): re-run scripts/setup_music.sh"
+
 echo "==> fonts, folders, database"
 bash scripts/fetch_fonts.sh
 export HF_HOME="$WS/hf"
@@ -49,5 +52,6 @@ Done. Add to ~/.bashrc (or $WS/secrets.env, which scripts/daily_run.sh sources):
 Then:
   python scripts/prefetch_models.py   # download weights once to the network volume
   shorts doctor                       # everything green?
+  shorts music                        # AI background music for every mood folder (one-time)
   shorts make --channel history_en --topic "The Great Emu War of 1932"
 EOF
