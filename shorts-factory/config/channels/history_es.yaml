@@ -1,0 +1,102 @@
+# LOCALIZED FLAGSHIP — same winning niche, Spanish-speaking market (LATAM + Spain).
+# Scripts are written natively in Spanish (not translated) and topics are chosen for this
+# audience (Spanish, Latin American and world history), so it is not duplicate content.
+id: history_es
+name: "Historia Oculta"
+enabled: true
+platform: youtube_shorts   # youtube_shorts | tiktok | instagram_reels
+language: es
+niche_slug: history            # storage folder: history/<language>/<date>/...
+niche: "Historia oculta: los momentos más extraños y reales del pasado"
+audience: >
+  Spanish-speaking adults 18-54 in Mexico, Colombia, Argentina, Spain, the US Hispanic market and
+  the rest of LATAM. Heavy mobile Shorts consumption, lower competition for high-production history.
+brief: >
+  Cinematic, fact-checked micro-documentaries written in natural, neutral Latin American Spanish
+  (avoid regional slang and vosotros). One astonishing true story per Short, told like a thriller.
+  Mix world history with Spanish and Latin American history the audience feels ownership of
+  (Aztec, Inca, Maya, colonial era, independence movements, Spanish golden age). Concrete names,
+  places, years and numbers. Never fabricate quotes; mark legends as legends.
+pillars:
+  - Hechos insólitos pero reales
+  - Decisiones catastróficas
+  - Misterios sin resolver
+  - La vida cotidiana en el pasado
+  - Mitos que todos creen
+  - Historia de América Latina y España que no te enseñaron
+banned:
+  - Graphic gore or torture detail
+  - Contemporary partisan politics
+  - Conspiracy theories presented as fact
+  - Genocide denial or trivialization
+  - Medical advice
+formats:
+  - id: untold_story
+    name: La Historia Que No Te Contaron
+    weight: 1.4
+    description: One astonishing true event, told as a 45-second thriller.
+    structure: >
+      Hook with the most shocking verified detail -> one line of context -> 2-3 escalating twists ->
+      payoff that re-frames the hook -> final line that flows back into the first line.
+  - id: worst_decision
+    name: Las Peores Decisiones de la Historia
+    weight: 1.2
+    description: A decision that looked smart and went spectacularly wrong.
+    structure: >
+      Hook stating the absurd outcome -> the decision and why it looked smart -> the chain reaction
+      -> the final cost in concrete numbers -> ironic loop line.
+  - id: unsolved
+    name: Sin Resolver
+    weight: 1.0
+    description: A real unsolved mystery laid out like a case file.
+    structure: >
+      Hook on the impossible detail -> facts of the case -> three clues as mini-reveals -> leading
+      theory and its flaw -> open question that loops.
+  - id: myth_vs_reality
+    name: Mito vs Realidad
+    weight: 0.9
+    description: A widely believed history "fact" that is false, and the stranger truth.
+    structure: >
+      Hook stating the myth as if true, then reverse it -> origin of the myth -> evidence -> the
+      weirder truth -> loop line.
+  - id: life_in
+    name: No Sobrevivirías
+    weight: 0.9
+    description: Second-person immersion in daily life in a specific time and place.
+    structure: >
+      Hook "Despiertas en <lugar, año>..." -> 3-4 escalating realities -> the detail that would end
+      you -> loop line.
+visual_style: >
+  cinematic historical oil painting, dramatic chiaroscuro lighting, rich textured brushwork,
+  muted earthy palette with deep shadows and warm highlights, volumetric light, subtle film grain,
+  highly detailed, vertical 9:16 composition, main subject in the upper two thirds
+negative_prompt: >
+  text, letters, words, caption, watermark, logo, signature, modern objects, blurry, lowres,
+  deformed hands, extra fingers, distorted face, cartoon, anime, 3d render
+music_moods: [dark_ambient, mystery, epic]
+target_seconds: 45
+words_per_second: 2.7
+fact_check: true
+voice:
+  chatterbox_ref: assets/voices/history_es.wav
+  kokoro_voice: em_alex
+schedule:
+  timezone: America/Mexico_City
+  windows: ["07:00-09:30", "12:00-15:00", "18:00-23:00"]
+  min_gap_minutes: 50
+  launch_date: null
+  ramp:
+    - {days: 14, per_day: 3}
+    - {days: 21, per_day: 6}
+    - {per_day: 10}
+trend_focus:              # what the daily web search looks for
+  - películas, series y documentales históricos nuevos
+  - descubrimientos arqueológicos en América Latina y España
+  - aniversarios de los próximos 7 días
+  - historias de historia virales en redes en español
+youtube:
+  channel_id: null
+  project: default
+  category_id: "27"
+  contains_synthetic_media: true
+  made_for_kids: false

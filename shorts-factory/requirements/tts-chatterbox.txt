@@ -1,0 +1,6 @@
+# Isolated venv for the Chatterbox TTS worker.
+# chatterbox-tts pins torch==2.6.0 / diffusers==0.29.0 / transformers==5.2.0,
+# which conflicts with the image stack, so it never shares a venv with it.
+# The worker (shorts_factory/workers/tts_worker.py) only needs the stdlib + numpy
+# on top of this, so the shorts_factory package itself is NOT installed here.
+chatterbox-tts==0.1.7

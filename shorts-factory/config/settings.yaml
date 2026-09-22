@@ -1,0 +1,118 @@
+# Global pipeline settings. Channel-specific strategy lives in config/channels/*.yaml.
+# Relative paths resolve against the shorts-factory/ directory.
+
+workdir: data            # SQLite db, job folders, rendered videos
+assets_dir: assets       # fonts/, music/<mood>/, sfx/whoosh/, voices/
+channels_dir: config/channels
+
+llm:
+  provider: anthropic    # anthropic | mock
+  model: claude-opus-5   # best script quality; swap to claude-sonnet-5 to cut LLM cost ~60%
+  effort: high
+  critic_effort: high
+  fallbacks: true        # server-side fallback if a request is declined by safety classifiers
+  concurrency: 6         # parallel script jobs (API-bound, not GPU-bound)
+  max_rewrites: 2
+  min_hook_score: 8      # 1-10; the first 2 seconds decide whether a Short gets pushed
+  min_overall_score: 7.5
+  web_search_max_uses: 5 # per fact-check call (channels with fact_check: true)
+
+tts:
+  backend: chatterbox    # chatterbox (best, MIT) | kokoro (fast, Apache-2.0) | elevenlabs (API) | mock
+  python: /workspace/venvs/tts/bin/python   # chatterbox needs its own venv (pinned torch)
+  speed: 1.06            # slight speed-up reads as "energetic" on Shorts
+  lead_pad: 0.04
+  tail_pad: 0.14
+  chatterbox:
+    variant: standard    # standard (emotion control, built-in voice) | turbo (faster, needs a voice ref)
+    exaggeration: 0.55   # 0.3 calm documentary ... 0.8 hype
+    cfg_weight: 0.45     # lower = slower, more deliberate pacing
+    temperature: 0.8
+  kokoro:
+    speed: 1.08
+  elevenlabs:
+    model_id: eleven_multilingual_v2
+
+align:
+  backend: faster_whisper
+  model: large-v3
+  compute_type: float16
+
+images:
+  backend: diffusers
+  # Z-Image-Turbo: Apache-2.0, 6B, 8-9 steps, excellent photorealism, fits 24 GB.
+  # Alternatives (edit steps/guidance/extra together):
+  #   black-forest-labs/FLUX.1-dev  steps: 28  guidance_scale: 3.5   (outputs usable commercially; weights non-commercial)
+  #   Qwen/Qwen-Image               steps: 40  guidance_scale: 1.0  extra: {true_cfg_scale: 4.0}  (Apache-2.0, 20B, needs 48 GB+)
+  model: Tongyi-MAI/Z-Image-Turbo
+  width: 1088
+  height: 1920
+  steps: 9
+  guidance_scale: 0.0
+  cpu_offload: false
+
+animate:
+  # Image-to-video for the hook scene only. Adds ~3-8 min/video on an H100 (more with cpu_offload).
+  # Turn on once the daily batch fits your GPU hours; see docs/RUNPOD_GUIDE.md capacity table.
+  enabled: false
+  scenes: hook
+  hook_scenes: 1
+  model: Wan-AI/Wan2.2-I2V-A14B-Diffusers
+  num_frames: 81
+  fps: 16
+  steps: 40
+  guidance_scale: 3.5
+  max_area: 399360       # 480x832
+  cpu_offload: true      # set false on 80 GB cards
+
+captions:
+  font: Anton
+  size: 124
+  uppercase: true
+  max_words: 3
+  highlight: "#FFE14D"
+  emphasis: "#3DFF7A"
+  center_y: 1150
+  headline: true
+  headline_seconds: 2.8
+
+render:
+  fps: 30
+  transition: 0.12
+  zoom_strength: 0.12
+  pan_strength: 0.22
+  encoder: auto          # auto uses NVENC when the GPU has it (L40S/4090/A6000 yes; H100/A100 no)
+  crf: 18
+  preset: medium
+  workers: 3             # parallel CPU renders
+  max_duration: 59
+  music_db: -19
+  sfx_db: -9
+  loudness_lufs: -14     # YouTube normalizes to about -14 LUFS
+  transition_sfx: true
+
+trends:
+  enabled: true
+  daily_topics: 4        # each day Claude web-searches the niche; 4 fresh trend-driven ideas jump the queue
+  max_searches: 5        # web searches per channel per day
+
+publish:
+  mode: storage          # storage = deliver finished videos to B2 (below); youtube | dry_run are optional
+  secrets_dir: secrets
+  client_secrets: client_secret.json
+  max_uploads_per_project_per_day: 100
+  lead_minutes: 45
+  notify_subscribers: false
+  require_approval: false  # true = only videos you `shorts approve` get delivered
+
+storage:
+  provider: b2           # b2 | local (copies into ./export, for offline runs)
+  bucket: my-shorts      # or env B2_BUCKET; keys come from env B2_KEY_ID / B2_APPLICATION_KEY
+  endpoint: https://s3.us-west-004.backblazeb2.com   # or env B2_S3_ENDPOINT (shown on the bucket page)
+  prefix: ""
+  # history/en/2026-09-23/20260923-history_en-1a2b3c_the-village-that-vanished.mp4 (+ .json, .jpg)
+  key_template: "{niche}/{language}/{date}/{stem}"
+  presign_days: 7        # daily _manifest.csv gets 7-day download links (0 = off)
+  cleanup_local: media   # after a verified upload delete local media (keeps scripts/metadata): none | media | all
+  feedback_prefix: feedback/   # the posting team drops performance CSVs here (docs/TEAM_HANDOFF.md)
+  backup_db: true        # job database snapshot to _system/backups/<date>/ after each run
