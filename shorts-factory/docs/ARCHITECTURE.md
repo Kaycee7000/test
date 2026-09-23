@@ -9,9 +9,10 @@ flowchart LR
       C --> D[Jobs + suggested post slots]
     end
     subgraph script[Script · Claude API, parallel]
-      E[Writer] --> F[Lint + web fact-check]
-      F --> G[Critic scores]
-      G -- below bar --> E
+      E[Writer] --> F[Lint + critic scores]
+      F -- below bar --> E
+      F -- clears bar --> G[Web fact-check]
+      G -- wrong claim --> E
     end
     subgraph gpu[GPU workers · one model load per batch]
       H[Voice<br/>Chatterbox / Kokoro] --> I[Word timings<br/>faster-whisper]

@@ -72,7 +72,7 @@ licensing, and what to watch in analytics.
 | Command | What it does |
 |---|---|
 | `shorts init` | Create folders and the database |
-| `shorts doctor` | Check ffmpeg/libass, fonts, GPU, TTS venv, API key, voices, music, OAuth tokens |
+| `shorts doctor` | Check ffmpeg/libass, fonts, GPU, TTS venv, Claude API access (free call), voices, music, storage |
 | `shorts music [--moods a,b] [--count N]` | Generate AI background music until each mood folder holds N tracks |
 | `shorts trends --channel ID [--refresh]` | Show today's trend brief (Claude web search; runs it if needed) |
 | `shorts feedback pull` / `shorts feedback import FILE` | Import the posting team's performance CSVs |
@@ -92,12 +92,12 @@ Add `--mock` to any command to use stand-ins for every model and API.
 
 - `config/settings.yaml`: models, quality thresholds, caption style, render settings, and `storage` (bucket, endpoint, key layout, cleanup).
 - `config/channels/*.yaml`: one file per channel: niche, `niche_slug` (the storage folder), `trend_focus` (what the daily trend search looks for), language, audience, brief, pillars, banned topics, formats, art direction, music moods, narrator voice, suggested posting windows, ramp. Add a channel by adding a file.
-- Env: `ANTHROPIC_API_KEY`, `B2_KEY_ID`, `B2_APPLICATION_KEY` (required), `B2_BUCKET`, `B2_S3_ENDPOINT`, plus `SHORTS_WORKDIR`, `SHORTS_ASSETS_DIR`, `SHORTS_SECRETS_DIR`, `SHORTS_TTS_PYTHON`, `SHORTS_PUBLISH_MODE`.
+- Env: `ANTHROPIC_API_KEY` (+ `ANTHROPIC_WORKSPACE_ID` if the key isn't workspace-scoped), `B2_KEY_ID`, `B2_APPLICATION_KEY` (required), `B2_BUCKET`, `B2_S3_ENDPOINT`, plus `SHORTS_WORKDIR`, `SHORTS_ASSETS_DIR`, `SHORTS_SECRETS_DIR`, `SHORTS_TTS_PYTHON`, `SHORTS_PUBLISH_MODE`.
 
 ## Honest expectations
 
 - YouTube demonetizes mass-produced, templated content wherever you post from. The videos are designed around originality, accuracy, a consistent voice and AI disclosure; keep a human skimming each batch (`shorts review`).
-- Estimated running cost per 100 videos: about $30-70 of Claude API (roughly $0.30-0.70 per video on Opus 5, plus a few cents per channel per day for the trend search; every run prints actual usage) plus about $4-6 of GPU time. B2 storage is small (about 35 MB per video). Details in the RunPod guide.
+- Claude API is the main cost, and it depends on how many drafts clear the quality bar. The first real run (Opus 5) cost $14.64 for one delivered video, most of it wasted on retries and rejected drafts that have since been cut down. Every run prints a per-step cost table; measure before scaling up. GPU time is a few dollars a day; B2 storage is small (about 35 MB per video). Details in the RunPod guide.
 
 ## Layout
 

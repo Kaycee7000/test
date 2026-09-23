@@ -135,9 +135,13 @@ verdict: "publish" only if every score is 8+ and both risks are low; "reject" if
 is weak, unverifiable or against policy (rewriting will not save it); otherwise "revise"."""
 
 
-def critic_user(ch: ChannelCfg, fmt: FormatCfg, draft: ScriptDraft, lint: list[str], fact_notes: list[str]) -> str:
+def critic_user(ch: ChannelCfg, fmt: FormatCfg, draft: ScriptDraft, lint: list[str],
+                fact_notes: list[str] | None = None) -> str:
+    """fact_notes=None: the web fact-check hasn't run (it runs after the critic approves), so judge accuracy
+    risk from the script itself."""
     words = sum(len(s.narration.split()) for s in draft.scenes)
     lo, hi = ch.target_words
+    facts = "" if fact_notes is None else f"\n\nFACT-CHECK FOUND:\n{_bullets(fact_notes)}"
     return f"""FORMAT: {fmt.id} ({fmt.name}) — {fmt.description}
 Structure: {fmt.structure.strip()}
 NARRATION: {words} words (target {lo}-{hi}), about {words / ch.words_per_second:.0f} seconds.
@@ -146,10 +150,7 @@ SCRIPT:
 {draft.model_dump_json(indent=1)}
 
 AUTOMATED CHECKS FOUND:
-{_bullets(lint)}
-
-FACT-CHECK FOUND:
-{_bullets(fact_notes)}"""
+{_bullets(lint)}{facts}"""
 
 
 def factcheck_system() -> str:

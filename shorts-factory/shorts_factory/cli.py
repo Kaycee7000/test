@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import subprocess
+from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Optional
@@ -15,7 +16,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
 
-from .config import Settings, load_channels, load_settings
+from .config import DEFAULT_CONFIG, Settings, find_config, load_channels, load_settings
 from .db import DB
 from .pipeline import STAGES, Pipeline
 
@@ -35,11 +36,15 @@ state = _State()
 
 @app.callback()
 def main(
-    config: str = typer.Option("config/settings.yaml", "--config", "-c", help="Path to settings.yaml"),
+    config: str = typer.Option(DEFAULT_CONFIG, "--config", "-c", envvar="SHORTS_CONFIG", help="Path to settings.yaml"),
     mock: bool = typer.Option(False, "--mock", help="No GPU/API: deterministic stand-ins for every model"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    state.config, state.mock = config, mock
+    try:
+        state.config = str(find_config(config))
+    except FileNotFoundError as e:
+        raise typer.BadParameter(str(e), param_hint="--config") from None
+    state.mock = mock
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO, format="%(message)s",
                         handlers=[RichHandler(console=console, show_path=False, rich_tracebacks=True)])
     for noisy in ("httpx", "httpx2", "googleapiclient", "urllib3", "anthropic"):
@@ -54,12 +59,26 @@ def _settings() -> Settings:
     return s
 
 
+@contextmanager
+def _llm_errors():
+    """Show Claude setup problems (bad key, missing workspace) as one clear line instead of a traceback."""
+    from .content.llm import WORKSPACE_HINT, LLMError
+    try:
+        yield
+    except LLMError as e:
+        if str(e) != WORKSPACE_HINT:
+            raise
+        console.print(f"[red]Claude API setup problem:[/] {e}")
+        raise typer.Exit(1)
+
+
 def _pipeline(channels: Optional[str] = None) -> Pipeline:
     s = _settings()
     only = [c.strip() for c in channels.split(",")] if channels else None
     chs = load_channels(s, only)
     if not chs:
-        raise typer.BadParameter("no enabled channels match")
+        have = ", ".join(c.id for c in load_channels(s)) or f"none in {s.path(s.channels_dir)}"
+        raise typer.BadParameter(f"no enabled channels match (available: {have})")
     return Pipeline(s, chs)
 
 
@@ -89,7 +108,7 @@ def init() -> None:
 def doctor() -> None:
     """Check that the environment can run the full pipeline."""
     s = _settings()
-    rows: list[tuple[str, bool, str]] = []
+    rows: list[tuple[str, bool, str]] = [("config", True, state.config)]
     ff = shutil.which("ffmpeg")
     rows.append(("ffmpeg", bool(ff), ff or "apt-get install -y ffmpeg"))
     if ff:
@@ -112,7 +131,14 @@ def doctor() -> None:
         py = acestep_python(s)
         rows.append(("music generator (ACE-Step)", Path(py).exists(), py if Path(py).exists() else "bash scripts/setup_music.sh"))
     if s.llm.provider == "anthropic":
-        rows.append(("ANTHROPIC_API_KEY", bool(os.environ.get("ANTHROPIC_API_KEY")), "export it or use `ant auth login`"))
+        has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+        rows.append(("ANTHROPIC_API_KEY", has_key, "export it or use `ant auth login`"))
+        if has_key:
+            from .content.llm import AnthropicLLM
+            try:
+                rows.append(("Claude API", True, f"{AnthropicLLM(s.llm).ping()} reachable"))
+            except Exception as e:
+                rows.append(("Claude API", False, str(e)[:300]))
     for ch in load_channels(s):
         if ch.voice.chatterbox_ref and s.tts.backend == "chatterbox":
             p = s.path(ch.voice.chatterbox_ref)
@@ -167,7 +193,8 @@ def run(
     """Produce (and schedule) a full day of Shorts."""
     p = _pipeline(channels)
     chosen = [x.strip() for x in stages.split(",")] if stages else None
-    p.run(_day(day), stages=chosen, count=count)
+    with _llm_errors():
+        p.run(_day(day), stages=chosen, count=count)
     _print_status(p, _day(day).isoformat())
     _print_usage(p)
 
@@ -191,7 +218,8 @@ def make(
     jid = p.db.create_job(ch.id, tid, today, f, topic, p.s.work,
                           data={"topic": {"title": topic, "angle": angle, "format": f, "keywords": []}})
     stages = [s for s in STAGES if s != "plan" and (upload or s != "upload")]
-    p.run(date.today(), stages=stages, ids=[jid])
+    with _llm_errors():
+        p.run(date.today(), stages=stages, ids=[jid])
     row = p.db.job(jid)
     console.print(f"job {jid}: [bold]{row['state']}[/] {row['error'] or ''}")
     delivered = json.loads(row["data"]).get("delivery")
@@ -341,9 +369,14 @@ def status(day: Optional[str] = typer.Option(None, "--date")) -> None:
     """Job counts per channel and state."""
     p = _pipeline()
     _print_status(p, _day(day).isoformat() if day else None)
-    failed = [r for r in p.db.jobs(state="failed") if not day or r["publish_date"] == _day(day).isoformat()]
+    d = _day(day).isoformat() if day else None
+    failed = [r for r in p.db.jobs(state="failed") if not d or r["publish_date"] == d]
     for r in failed[:20]:
-        console.print(f"[red]{r['id']}[/] {r['error']}")
+        console.print(f"[red]failed[/] {r['id']} {r['error']}")
+    rejected = [r for r in p.db.jobs(state="rejected") if not d or r["publish_date"] == d]
+    for r in rejected[:20]:
+        last = (r["error"] or "").split("; round ")[-1]  # the final critic round is the useful part
+        console.print(f"[yellow]rejected[/] {r['id']} [bold]{r['title']}[/]\n  {last[:700]}")
 
 
 def _print_status(p: Pipeline, day: str | None) -> None:
@@ -361,18 +394,25 @@ PRICES = {"claude-opus-5": (5.0, 25.0), "claude-sonnet-5": (2.0, 10.0), "claude-
           "claude-haiku-4-5": (1.0, 5.0)}
 
 
+def _cost(u: dict, price: tuple[float, float]) -> float:
+    # input_tokens excludes cache reads; cache reads bill at 10% of the input price.
+    return ((u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0) * 0.1) * price[0]
+            + u.get("output_tokens", 0) * price[1]) / 1e6 + u.get("web_search_requests", 0) * 0.01
+
+
 def _print_usage(p: Pipeline) -> None:
     usage = getattr(p._llm, "usage", None)
     if not usage:
         return
-    line = f"LLM usage: {json.dumps(dict(usage))}"
-    price = PRICES.get(p.s.llm.model)
-    if price and p.s.llm.provider == "anthropic":
-        uncached = usage.get("input_tokens", 0)
-        cost = (uncached * price[0] + usage.get("cache_read_input_tokens", 0) * price[0] * 0.1
-                + usage.get("output_tokens", 0) * price[1]) / 1e6 + usage.get("web_search_requests", 0) * 0.01
-        line += f"  ≈ ${cost:.2f}"
-    console.print(f"[dim]{line}[/]")
+    price = PRICES.get(p.s.llm.model) if p.s.llm.provider == "anthropic" else None
+    t = Table("Claude step", "calls", "input tok", "output tok", "searches", "≈ $", title="Claude API usage")
+    for step, u in sorted(getattr(p._llm, "by_step", {}).items(),
+                          key=lambda kv: -(_cost(kv[1], price) if price else kv[1]["requests"])):
+        t.add_row(step, str(u["requests"]), f"{u['input_tokens']:,}", f"{u['output_tokens']:,}",
+                  str(u["web_search_requests"] or ""), f"{_cost(u, price):.2f}" if price else "")
+    t.add_row("[bold]total[/]", str(usage["requests"]), f"{usage['input_tokens']:,}", f"{usage['output_tokens']:,}",
+              str(usage["web_search_requests"] or ""), f"[bold]{_cost(usage, price):.2f}[/]" if price else "")
+    console.print(t)
 
 
 if __name__ == "__main__":

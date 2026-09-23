@@ -38,7 +38,11 @@ class AceStep:
         os.environ.setdefault("ACESTEP_PROJECT_ROOT", root)  # checkpoints live in <acestep_dir>/checkpoints
         from acestep.handler import AceStepHandler
         from acestep.llm_inference import LLMHandler
+        from loguru import logger
 
+        # ACE-Step logs every prompt and audio token at DEBUG; keep only problems so progress stays readable.
+        logger.remove()
+        logger.add(sys.stderr, level=os.environ.get("ACESTEP_LOG_LEVEL", "WARNING"))
         self.p = p
         self.dit = AceStepHandler()
         msg, ok = self.dit.initialize_service(project_root=root, config_path=p["dit_model"], device=device)
@@ -88,7 +92,8 @@ def main(manifest_path: str, out_path: str) -> int:
     m = json.load(open(manifest_path))
     gen = AceStep(m.get("params", {}), m.get("device", "cuda")) if m["backend"] == "acestep" else None
     results: dict = {}
-    for task in m["tasks"]:
+    total = len(m["tasks"])
+    for n, task in enumerate(m["tasks"], 1):
         t0 = time.time()
         try:
             if gen is None:
@@ -99,7 +104,7 @@ def main(manifest_path: str, out_path: str) -> int:
         except Exception as e:
             traceback.print_exc()
             results[task["id"]] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
-        print(f"[music] {task['id']}: {results[task['id']]}", flush=True)
+        print(f"[music] {n}/{total} {task['id']}: {results[task['id']]}", flush=True)
     json.dump({"results": results}, open(out_path, "w"))
     return 0
 

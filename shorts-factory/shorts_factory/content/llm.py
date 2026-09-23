@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import re
 import threading
-from collections import Counter
+from collections import Counter, defaultdict
 from typing import Any, Protocol, TypeVar
 
 from pydantic import BaseModel
@@ -17,10 +18,22 @@ log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+WORKSPACE_HINT = (
+    "Your Anthropic API key isn't tied to a workspace. Either create a key inside a workspace "
+    "(console.anthropic.com -> Settings -> Workspaces -> pick one, e.g. Default -> API keys) and put it in "
+    "ANTHROPIC_API_KEY, or keep this key and set ANTHROPIC_WORKSPACE_ID=wrkspc_... (the workspace's ID, "
+    "shown in Settings -> Workspaces). Then reload secrets.env and run the same command again."
+)
 
 
 class LLMError(RuntimeError):
     pass
+
+
+def _raise_setup_error(e: Exception) -> None:
+    msg = str(e).lower()
+    if "anthropic-workspace-id" in msg or "scoped to a workspace" in msg:
+        raise LLMError(WORKSPACE_HINT) from e
 
 
 class LLM(Protocol):
@@ -36,14 +49,38 @@ class AnthropicLLM:
         import anthropic
 
         self.cfg = cfg
-        self.client = anthropic.Anthropic(max_retries=4)
+        ws = os.environ.get("ANTHROPIC_WORKSPACE_ID", "").strip()
+        self.client = anthropic.Anthropic(
+            max_retries=4, default_headers={"anthropic-workspace-id": ws} if ws else None)
         self.usage: Counter[str] = Counter()
+        self.by_step: defaultdict[str, Counter[str]] = defaultdict(Counter)
         self._lock = threading.Lock()
+
+    def _create(self, **kw: Any) -> Any:
+        import anthropic
+
+        # Streamed so long thinking + output can't hit the SDK's non-streaming timeout guard.
+        try:
+            with self.client.beta.messages.stream(**kw) as stream:
+                return stream.get_final_message()
+        except anthropic.APIStatusError as e:
+            _raise_setup_error(e)
+            raise
+
+    def ping(self) -> str:
+        """Cheap auth check (no tokens billed): key valid, workspace set, model reachable."""
+        import anthropic
+
+        try:
+            return self.client.models.retrieve(self.cfg.model).id
+        except anthropic.APIStatusError as e:
+            _raise_setup_error(e)
+            raise
 
     def _common(self, effort: str) -> dict[str, Any]:
         kw: dict[str, Any] = {
             "model": self.cfg.model,
-            "max_tokens": 16000,
+            "max_tokens": self.cfg.max_tokens,
             "thinking": {"type": "adaptive"},
             "output_config": {"effort": effort},
         }
@@ -52,16 +89,20 @@ class AnthropicLLM:
             kw["fallbacks"] = "default"
         return kw
 
-    def _track(self, resp: Any) -> None:
+    def _track(self, resp: Any, step: str) -> None:
         u = resp.usage
+        stu = getattr(u, "server_tool_use", None)
+        add = {
+            "requests": 1,
+            "input_tokens": u.input_tokens or 0,
+            "output_tokens": u.output_tokens or 0,
+            "cache_read_input_tokens": getattr(u, "cache_read_input_tokens", 0) or 0,
+            "web_search_requests": (getattr(stu, "web_search_requests", 0) or 0) if stu is not None else 0,
+        }
         with self._lock:
-            self.usage["requests"] += 1
-            self.usage["input_tokens"] += u.input_tokens or 0
-            self.usage["output_tokens"] += u.output_tokens or 0
-            self.usage["cache_read_input_tokens"] += getattr(u, "cache_read_input_tokens", 0) or 0
-            stu = getattr(u, "server_tool_use", None)
-            if stu is not None:
-                self.usage["web_search_requests"] += getattr(stu, "web_search_requests", 0) or 0
+            for k, v in add.items():
+                self.usage[k] += v
+                self.by_step[step][k] += v
 
     @staticmethod
     def _check(resp: Any) -> None:
@@ -70,23 +111,23 @@ class AnthropicLLM:
             raise LLMError(f"request declined ({getattr(details, 'category', None)}): "
                            f"{getattr(details, 'explanation', '')}")
         if resp.stop_reason == "max_tokens":
-            raise LLMError("response hit max_tokens")
+            raise LLMError("response hit max_tokens (raise llm.max_tokens or lower llm.effort)")
 
     def structured(self, system: str, user: str, schema: type[T], effort: str | None = None,
                    context: dict[str, Any] | None = None) -> T:
-        # create() + explicit validation instead of parse(): parse() validates eagerly, so a refusal or
+        # Raw schema + explicit validation instead of parse(): parse() validates eagerly, so a refusal or
         # max_tokens cut-off would surface as a JSON error before stop_reason can be inspected.
         from anthropic import transform_schema
 
         kw = self._common(effort or self.cfg.effort)
         kw["output_config"] = {**kw["output_config"],
                                "format": {"type": "json_schema", "schema": transform_schema(schema)}}
-        resp = self.client.beta.messages.create(
+        resp = self._create(
             **kw,
             system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": user}],
         )
-        self._track(resp)
+        self._track(resp, (context or {}).get("step") or schema.__name__)
         self._check(resp)
         text = next((b.text for b in resp.content if b.type == "text"), "")
         try:
@@ -101,10 +142,8 @@ class AnthropicLLM:
         tools = [{"type": "web_search_20260209", "name": "web_search",
                   "max_uses": max_uses or self.cfg.web_search_max_uses}]
         for _ in range(4):
-            resp = self.client.beta.messages.create(
-                **self._common("medium"), system=system, messages=messages, tools=tools,
-            )
-            self._track(resp)
+            resp = self._create(**self._common("medium"), system=system, messages=messages, tools=tools)
+            self._track(resp, (context or {}).get("kind") or "research")
             if resp.stop_reason == "pause_turn":
                 messages = [messages[0], {"role": "assistant", "content": resp.content}]
                 continue
@@ -123,11 +162,13 @@ class MockLLM:
 
     def __init__(self, cfg: LLMCfg | None = None):
         self.usage: Counter[str] = Counter()
+        self.by_step: defaultdict[str, Counter[str]] = defaultdict(Counter)
 
     def structured(self, system: str, user: str, schema: type[T], effort: str | None = None,
                    context: dict[str, Any] | None = None) -> T:
         ctx = context or {}
         self.usage["requests"] += 1
+        self.by_step[ctx.get("step") or schema.__name__]["requests"] += 1
         if schema is TopicBatch:
             fmts = ctx.get("formats", ["mock"])
             timely = bool(ctx.get("timely"))
@@ -158,6 +199,7 @@ class MockLLM:
                  max_uses: int | None = None) -> str:
         ctx = context or {}
         self.usage["requests"] += 1
+        self.by_step[ctx.get("kind") or "research"]["requests"] += 1
         if ctx.get("kind") == "trends":
             return ("- A new documentary about a lost city | premiered this week | the detail the film left out "
                     "| [source: https://example.org/doc]\n"

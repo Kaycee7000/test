@@ -21,16 +21,16 @@ Rough per-video numbers for a 45 s Short with 13 scenes on an L40S. `shorts make
 | Script: write, fact-check, critique, rewrite | Claude API, 6 in parallel | 2-4 min wall | ~15-25 min |
 | Voice (Chatterbox) | GPU | 20-40 s | ~15-30 min |
 | Word timings (Whisper large-v3) | GPU | ~5 s | ~3 min |
-| Images (Z-Image-Turbo, 13 × 1088x1920) | GPU | 40-80 s | ~30-55 min |
+| Images (Z-Image-Turbo, 14 × 1088x1920) | GPU | ~5-6 min (14-23 s per image on RTX 6000 Ada) | ~3.5-4 h |
 | Render (captions, motion, mix) | CPU, 3 in parallel (NVENC if present) | 20-40 s | ~10-15 min |
 | Hook animation (Wan 2.2 A14B, optional) | GPU | 4-8 min on H100 | +3-5 h |
 
-**Without animation: ~1.5-2 GPU-hours per day** for 42 videos. **With hook animation: an H100 for ~5-7 hours.**
+**Without animation: ~4-5 GPU-hours per day** for 42 videos (measured on an RTX 6000 Ada: ~6 min of images and ~1.5 min of voice per video). **With hook animation: an H100 for ~5-7 hours.**
 
 Monthly ballpark at 42/day (check current RunPod and Anthropic pricing):
 - GPU: L40S ~2 h/day ≈ $50-70/mo. H100 with animation ≈ $400-600/mo.
 - Network volume (150 GB) ≈ $10/mo.
-- Claude API: roughly **$0.30-0.70 per published video** on `claude-opus-5` (writer, critic, web fact-check and rewrites) plus a few cents per channel per day for the trend search, about $400-850/mo at 42/day. It's usually the biggest line item. Levers, in order: `web_search_max_uses: 3`; `max_rewrites: 1`; `llm.model: claude-sonnet-5` (about 60% cheaper; measure the quality change on 20 scripts first). Every run prints actual token usage and an estimated cost.
+- Claude API: the biggest line item by far, and it scales with how many drafts it takes to get one past the quality bar. **Measured, not estimated:** the first real run on `claude-opus-5` cost $14.64 for 1 delivered video (67 requests, 104 web searches). Most of that was waste since reduced: jobs that hit `max_tokens` and reran from scratch, 4 of 6 scripts rejected after 3 rounds each, and a web fact-check on every draft (now only on drafts the critic approves). Every run prints a per-step cost table (draft, critic, rewrite, factcheck, topics, trends): run a day at `--count 3`, read the table and the rejection reasons (`shorts status --date …`), then tune before scaling. Levers, in order: fix what the rejections say (thresholds, channel brief); `web_search_max_uses: 3`; `max_rewrites: 1`; `llm.critic_effort: medium`; `llm.model: claude-sonnet-5` ($2/$10 per M tokens vs $5/$25; measure the quality change on 20 scripts first).
 
 ## Setup (≈ 30 minutes)
 
@@ -42,7 +42,8 @@ Monthly ballpark at 42/day (check current RunPod and Anthropic pricing):
    git clone <your repo url> repo && cd repo/shorts-factory
    bash scripts/runpod_bootstrap.sh          # ffmpeg, both venvs, fonts, database
    cat > /workspace/secrets.env <<'EOF'
-   ANTHROPIC_API_KEY=sk-ant-...
+   ANTHROPIC_API_KEY=sk-ant-...              # create it inside a workspace (Console → Settings → Workspaces)
+   # ANTHROPIC_WORKSPACE_ID=wrkspc_...       # only if your key is not scoped to a workspace
    B2_KEY_ID=...                             # Backblaze application key (see "Backblaze B2" below)
    B2_APPLICATION_KEY=...
    HF_TOKEN=hf_...                           # only needed for gated models like FLUX.1-dev
@@ -77,7 +78,7 @@ The same code works with any S3-compatible store (Cloudflare R2, Wasabi, AWS S3)
 
 ## Daily automation
 
-A full day's batch takes 1.5-2 hours, so don't keep the GPU running 24/7. Pick one:
+A full day's batch takes several hours (see the capacity table), so don't keep the GPU running 24/7. Pick one:
 
 **A. Manual (simplest to start):** start the pod from the console each day, run `bash scripts/daily_run.sh`, stop the pod. About 5 minutes of your time.
 
@@ -110,6 +111,9 @@ Everything is resumable: if a run dies halfway, run the same command again.
 
 | Symptom | Fix |
 |---|---|
+| `no enabled channels match` | Run `shorts` from inside `shorts-factory/` (or pass `--config`); `shorts doctor` shows which settings file it loaded |
+| `response hit max_tokens` | Thinking counts toward the cap. Raise `llm.max_tokens` (up to 128000) or lower `llm.effort`; then re-run the same command |
+| `API key is not scoped to a workspace` / doctor `Claude API` red | Make a key inside a workspace (Console → Settings → Workspaces → Default → API keys) and replace `ANTHROPIC_API_KEY`, or add `ANTHROPIC_WORKSPACE_ID=wrkspc_…` to `secrets.env`. Reload with `set -a; . /workspace/secrets.env; set +a` |
 | `CUDA out of memory` in the image stage | `images.cpu_offload: true`, or a smaller model / resolution (e.g. 896x1600) |
 | Whisper: `libcudnn…` not found | `pip install nvidia-cudnn-cu12==9.*` in the main venv, or `align.compute_type: int8_float16` |
 | Chatterbox import errors | Rebuild the TTS venv: `rm -rf /workspace/venvs/tts && bash scripts/runpod_bootstrap.sh` |

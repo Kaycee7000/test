@@ -1,4 +1,4 @@
-"""Script generation with a quality gate: draft -> lint + fact-check -> critic -> rewrite -> ship or reject."""
+"""Script generation with a quality gate: draft -> lint + critic -> fact-check -> rewrite -> ship or reject."""
 from __future__ import annotations
 
 import logging
@@ -9,7 +9,7 @@ from rapidfuzz import fuzz
 
 from ..config import ChannelCfg, LLMCfg
 from . import prompts
-from .llm import LLM
+from .llm import LLM, LLMError
 from .schemas import Critique, ScriptDraft
 
 log = logging.getLogger(__name__)
@@ -124,34 +124,41 @@ class ScriptWriter:
                "music_moods": ch.music_moods}
         draft = normalize(self.llm.structured(
             system, prompts.writer_user(ch, fmt, topic, learnings, recent_titles), ScriptDraft,
-            effort=self.cfg.effort, context=ctx), ch)
+            effort=self.cfg.effort, context=ctx | {"step": "script draft"}), ch)
 
         fc_cache: dict[str, str] = {}
         notes: list[str] = []
         critique: Critique | None = None
         for rnd in range(self.cfg.max_rewrites + 1):
             issues = lint(draft, ch, recent_titles)
-            fact_problems = self.fact_check(ch, draft.fact_claims, fc_cache) if ch.fact_check else []
             critique = self.llm.structured(
-                prompts.critic_system(ch), prompts.critic_user(ch, fmt, draft, issues, fact_problems),
-                Critique, effort=self.cfg.critic_effort, context=ctx)
-            notes.append(f"round {rnd}: {prompts.critique_summary(critique)}; lint={len(issues)}; "
-                         f"facts={len(fact_problems)}")
-            passed = (
+                prompts.critic_system(ch), prompts.critic_user(ch, fmt, draft, issues),
+                Critique, effort=self.cfg.critic_effort, context=ctx | {"step": "critic"})
+            craft_ok = (
                 not issues
-                and not any(p.upper().startswith("WRONG") for p in fact_problems)
                 and critique.hook_score >= self.cfg.min_hook_score
                 and critique.overall >= self.cfg.min_overall_score
                 and critique.accuracy_risk != "high"
                 and critique.policy_risk != "high"
                 and critique.verdict != "reject"
             )
-            if passed:
+            # Web fact-checking is the most expensive step, so it runs only on drafts that would otherwise
+            # ship. Every published script is still verified; drafts headed for a rewrite are not.
+            fact_problems = self.fact_check(ch, draft.fact_claims, fc_cache) if craft_ok and ch.fact_check else []
+            wrong = [f for f in fact_problems if f.upper().startswith("WRONG")]
+            notes.append(f"round {rnd}: {prompts.critique_summary(critique)}; lint={issues[:3]}; "
+                         f"critic={[i[:160] for i in critique.issues[:3]]}; wrong_facts={len(wrong)}")
+            if craft_ok and not wrong:
                 return ScriptResult(True, draft, critique, rnd + 1, notes)
             if critique.verdict == "reject" or rnd == self.cfg.max_rewrites:
                 break
             fixes = issues + fact_problems + critique.issues
-            draft = normalize(self.llm.structured(
-                system, prompts.rewrite_user(ch, fmt, draft, fixes), ScriptDraft,
-                effort=self.cfg.effort, context=ctx), ch)
+            try:
+                draft = normalize(self.llm.structured(
+                    system, prompts.rewrite_user(ch, fmt, draft, fixes), ScriptDraft,
+                    effort=self.cfg.effort, context=ctx | {"step": "rewrite"}), ch)
+            except LLMError as e:
+                # Keep the last complete draft; it is rejected (and replaced) rather than failing the job.
+                notes.append(f"rewrite {rnd + 1} failed: {e}")
+                break
         return ScriptResult(False, draft, critique, rnd + 1, notes)
