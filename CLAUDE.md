@@ -7,7 +7,7 @@ The project lives in `shorts-factory/` (read its README and `docs/` for the desi
 
 | | |
 |---|---|
-| Pod | `shorts-factory`, id `wp74hgudj341g1`, RTX 6000 Ada 48 GB, 16 vCPU, Secure Cloud US-IL-1, $0.84/hr |
+| Pod | `shorts-factory-2`, id `u8peu7pkfj7ara`, RTX 6000 Ada 48 GB, 16 vCPU, Secure Cloud US-IL-1, $0.84/hr (created 2026-09-23 because the original `wp74hgudj341g1`, now stopped, had no free GPU on its host) |
 | Network volume | `nslmnoisc8`, 150 GB, mounted at `/workspace` (everything that matters lives here) |
 | Repo | `/workspace/repo` (this repo) |
 | Python | `/workspace/venvs/main` (pipeline, `shorts` CLI), `/workspace/venvs/tts` (Chatterbox), `/workspace/ACE-Step-1.5/.venv` (music) |
@@ -15,7 +15,10 @@ The project lives in `shorts-factory/` (read its README and `docs/` for the desi
 | Secrets | `/workspace/secrets.env`: ANTHROPIC_API_KEY (workspace-scoped), B2 keys, bucket `shortsPipeline` |
 
 The container disk (including `/root` and apt packages such as ffmpeg) resets when the pod stops. Stop the pod when
-a test session is done; say the hourly price before starting anything billable.
+a test session is done; say the hourly price before starting anything billable. A stopped pod can only restart on
+its original host; if that host has no free GPU, create a new pod in US-IL-1 with the same image
+(`runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04`, the venvs depend on its Python) and the same
+network volume.
 
 Session setup on the pod:
 ```bash
