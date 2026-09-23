@@ -72,7 +72,7 @@ licensing, and what to watch in analytics.
 | Command | What it does |
 |---|---|
 | `shorts init` | Create folders and the database |
-| `shorts doctor` | Check ffmpeg/libass, fonts, GPU, TTS venv, API key, voices, music, OAuth tokens |
+| `shorts doctor` | Check ffmpeg/libass, fonts, GPU, TTS venv, Claude API access (free call), voices, music, storage |
 | `shorts music [--moods a,b] [--count N]` | Generate AI background music until each mood folder holds N tracks |
 | `shorts trends --channel ID [--refresh]` | Show today's trend brief (Claude web search; runs it if needed) |
 | `shorts feedback pull` / `shorts feedback import FILE` | Import the posting team's performance CSVs |
@@ -92,7 +92,7 @@ Add `--mock` to any command to use stand-ins for every model and API.
 
 - `config/settings.yaml`: models, quality thresholds, caption style, render settings, and `storage` (bucket, endpoint, key layout, cleanup).
 - `config/channels/*.yaml`: one file per channel: niche, `niche_slug` (the storage folder), `trend_focus` (what the daily trend search looks for), language, audience, brief, pillars, banned topics, formats, art direction, music moods, narrator voice, suggested posting windows, ramp. Add a channel by adding a file.
-- Env: `ANTHROPIC_API_KEY`, `B2_KEY_ID`, `B2_APPLICATION_KEY` (required), `B2_BUCKET`, `B2_S3_ENDPOINT`, plus `SHORTS_WORKDIR`, `SHORTS_ASSETS_DIR`, `SHORTS_SECRETS_DIR`, `SHORTS_TTS_PYTHON`, `SHORTS_PUBLISH_MODE`.
+- Env: `ANTHROPIC_API_KEY` (+ `ANTHROPIC_WORKSPACE_ID` if the key isn't workspace-scoped), `B2_KEY_ID`, `B2_APPLICATION_KEY` (required), `B2_BUCKET`, `B2_S3_ENDPOINT`, plus `SHORTS_WORKDIR`, `SHORTS_ASSETS_DIR`, `SHORTS_SECRETS_DIR`, `SHORTS_TTS_PYTHON`, `SHORTS_PUBLISH_MODE`.
 
 ## Honest expectations
 

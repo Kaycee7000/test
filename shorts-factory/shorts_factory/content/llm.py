@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import re
 import threading
 from collections import Counter
@@ -17,10 +18,22 @@ log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+WORKSPACE_HINT = (
+    "Your Anthropic API key isn't tied to a workspace. Either create a key inside a workspace "
+    "(console.anthropic.com -> Settings -> Workspaces -> pick one, e.g. Default -> API keys) and put it in "
+    "ANTHROPIC_API_KEY, or keep this key and set ANTHROPIC_WORKSPACE_ID=wrkspc_... (the workspace's ID, "
+    "shown in Settings -> Workspaces). Then reload secrets.env and run the same command again."
+)
 
 
 class LLMError(RuntimeError):
     pass
+
+
+def _raise_setup_error(e: Exception) -> None:
+    msg = str(e).lower()
+    if "anthropic-workspace-id" in msg or "scoped to a workspace" in msg:
+        raise LLMError(WORKSPACE_HINT) from e
 
 
 class LLM(Protocol):
@@ -36,9 +49,30 @@ class AnthropicLLM:
         import anthropic
 
         self.cfg = cfg
-        self.client = anthropic.Anthropic(max_retries=4)
+        ws = os.environ.get("ANTHROPIC_WORKSPACE_ID", "").strip()
+        self.client = anthropic.Anthropic(
+            max_retries=4, default_headers={"anthropic-workspace-id": ws} if ws else None)
         self.usage: Counter[str] = Counter()
         self._lock = threading.Lock()
+
+    def _create(self, **kw: Any) -> Any:
+        import anthropic
+
+        try:
+            return self.client.beta.messages.create(**kw)
+        except anthropic.APIStatusError as e:
+            _raise_setup_error(e)
+            raise
+
+    def ping(self) -> str:
+        """Cheap auth check (no tokens billed): key valid, workspace set, model reachable."""
+        import anthropic
+
+        try:
+            return self.client.models.retrieve(self.cfg.model).id
+        except anthropic.APIStatusError as e:
+            _raise_setup_error(e)
+            raise
 
     def _common(self, effort: str) -> dict[str, Any]:
         kw: dict[str, Any] = {
@@ -81,7 +115,7 @@ class AnthropicLLM:
         kw = self._common(effort or self.cfg.effort)
         kw["output_config"] = {**kw["output_config"],
                                "format": {"type": "json_schema", "schema": transform_schema(schema)}}
-        resp = self.client.beta.messages.create(
+        resp = self._create(
             **kw,
             system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": user}],
@@ -101,9 +135,7 @@ class AnthropicLLM:
         tools = [{"type": "web_search_20260209", "name": "web_search",
                   "max_uses": max_uses or self.cfg.web_search_max_uses}]
         for _ in range(4):
-            resp = self.client.beta.messages.create(
-                **self._common("medium"), system=system, messages=messages, tools=tools,
-            )
+            resp = self._create(**self._common("medium"), system=system, messages=messages, tools=tools)
             self._track(resp)
             if resp.stop_reason == "pause_turn":
                 messages = [messages[0], {"role": "assistant", "content": resp.content}]

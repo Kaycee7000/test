@@ -42,7 +42,8 @@ Monthly ballpark at 42/day (check current RunPod and Anthropic pricing):
    git clone <your repo url> repo && cd repo/shorts-factory
    bash scripts/runpod_bootstrap.sh          # ffmpeg, both venvs, fonts, database
    cat > /workspace/secrets.env <<'EOF'
-   ANTHROPIC_API_KEY=sk-ant-...
+   ANTHROPIC_API_KEY=sk-ant-...              # create it inside a workspace (Console → Settings → Workspaces)
+   # ANTHROPIC_WORKSPACE_ID=wrkspc_...       # only if your key is not scoped to a workspace
    B2_KEY_ID=...                             # Backblaze application key (see "Backblaze B2" below)
    B2_APPLICATION_KEY=...
    HF_TOKEN=hf_...                           # only needed for gated models like FLUX.1-dev
@@ -110,6 +111,7 @@ Everything is resumable: if a run dies halfway, run the same command again.
 
 | Symptom | Fix |
 |---|---|
+| `API key is not scoped to a workspace` / doctor `Claude API` red | Make a key inside a workspace (Console → Settings → Workspaces → Default → API keys) and replace `ANTHROPIC_API_KEY`, or add `ANTHROPIC_WORKSPACE_ID=wrkspc_…` to `secrets.env`. Reload with `set -a; . /workspace/secrets.env; set +a` |
 | `CUDA out of memory` in the image stage | `images.cpu_offload: true`, or a smaller model / resolution (e.g. 896x1600) |
 | Whisper: `libcudnn…` not found | `pip install nvidia-cudnn-cu12==9.*` in the main venv, or `align.compute_type: int8_float16` |
 | Chatterbox import errors | Rebuild the TTS venv: `rm -rf /workspace/venvs/tts && bash scripts/runpod_bootstrap.sh` |

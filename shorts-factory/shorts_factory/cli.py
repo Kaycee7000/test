@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import subprocess
+from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Optional
@@ -52,6 +53,19 @@ def _settings() -> Settings:
         s = s.mock()
         s.workdir = str(Path(s.workdir) / "mock")
     return s
+
+
+@contextmanager
+def _llm_errors():
+    """Show Claude setup problems (bad key, missing workspace) as one clear line instead of a traceback."""
+    from .content.llm import WORKSPACE_HINT, LLMError
+    try:
+        yield
+    except LLMError as e:
+        if str(e) != WORKSPACE_HINT:
+            raise
+        console.print(f"[red]Claude API setup problem:[/] {e}")
+        raise typer.Exit(1)
 
 
 def _pipeline(channels: Optional[str] = None) -> Pipeline:
@@ -112,7 +126,14 @@ def doctor() -> None:
         py = acestep_python(s)
         rows.append(("music generator (ACE-Step)", Path(py).exists(), py if Path(py).exists() else "bash scripts/setup_music.sh"))
     if s.llm.provider == "anthropic":
-        rows.append(("ANTHROPIC_API_KEY", bool(os.environ.get("ANTHROPIC_API_KEY")), "export it or use `ant auth login`"))
+        has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+        rows.append(("ANTHROPIC_API_KEY", has_key, "export it or use `ant auth login`"))
+        if has_key:
+            from .content.llm import AnthropicLLM
+            try:
+                rows.append(("Claude API", True, f"{AnthropicLLM(s.llm).ping()} reachable"))
+            except Exception as e:
+                rows.append(("Claude API", False, str(e)[:300]))
     for ch in load_channels(s):
         if ch.voice.chatterbox_ref and s.tts.backend == "chatterbox":
             p = s.path(ch.voice.chatterbox_ref)
@@ -167,7 +188,8 @@ def run(
     """Produce (and schedule) a full day of Shorts."""
     p = _pipeline(channels)
     chosen = [x.strip() for x in stages.split(",")] if stages else None
-    p.run(_day(day), stages=chosen, count=count)
+    with _llm_errors():
+        p.run(_day(day), stages=chosen, count=count)
     _print_status(p, _day(day).isoformat())
     _print_usage(p)
 
@@ -191,7 +213,8 @@ def make(
     jid = p.db.create_job(ch.id, tid, today, f, topic, p.s.work,
                           data={"topic": {"title": topic, "angle": angle, "format": f, "keywords": []}})
     stages = [s for s in STAGES if s != "plan" and (upload or s != "upload")]
-    p.run(date.today(), stages=stages, ids=[jid])
+    with _llm_errors():
+        p.run(date.today(), stages=stages, ids=[jid])
     row = p.db.job(jid)
     console.print(f"job {jid}: [bold]{row['state']}[/] {row['error'] or ''}")
     delivered = json.loads(row["data"]).get("delivery")
