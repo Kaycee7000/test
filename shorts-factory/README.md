@@ -97,7 +97,7 @@ Add `--mock` to any command to use stand-ins for every model and API.
 ## Honest expectations
 
 - YouTube demonetizes mass-produced, templated content wherever you post from. The videos are designed around originality, accuracy, a consistent voice and AI disclosure; keep a human skimming each batch (`shorts review`).
-- Estimated running cost per 100 videos: about $30-70 of Claude API (roughly $0.30-0.70 per video on Opus 5, plus a few cents per channel per day for the trend search; every run prints actual usage) plus about $4-6 of GPU time. B2 storage is small (about 35 MB per video). Details in the RunPod guide.
+- Claude API is the main cost, and it depends on how many drafts clear the quality bar. The first real run (Opus 5) cost $14.64 for one delivered video, most of it wasted on retries and rejected drafts that have since been cut down. Every run prints a per-step cost table; measure before scaling up. GPU time is a few dollars a day; B2 storage is small (about 35 MB per video). Details in the RunPod guide.
 
 ## Layout
 

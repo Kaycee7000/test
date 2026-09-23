@@ -91,7 +91,7 @@ def _message(text, stop="end_turn"):
 def test_structured_request_shape(fake_api):
     fake_api.reply = _message(json.dumps(CRITIQUE))
     llm = AnthropicLLM(LLMCfg())
-    out = llm.structured("system prompt", "user prompt", Critique, effort="high")
+    out = llm.structured("system prompt", "user prompt", Critique, effort="high", context={"step": "critic"})
     assert isinstance(out, Critique) and out.hook_score == 9
     headers, body = fake_api.captured[0]
     assert body["model"] == "claude-opus-5"
@@ -103,6 +103,7 @@ def test_structured_request_shape(fake_api):
     assert FALLBACK_BETA in headers.get("anthropic-beta", "")
     assert body["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert llm.usage["output_tokens"] == 34
+    assert llm.by_step["critic"]["output_tokens"] == 34 and llm.by_step["critic"]["requests"] == 1
 
 
 def test_refusal_raises(fake_api):

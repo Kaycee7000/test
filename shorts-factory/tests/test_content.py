@@ -120,3 +120,35 @@ def test_failed_rewrite_keeps_last_draft(project):
         ch, ch.formats[0].id, {"title": "The lighthouse of Riga"}, "", [])
     assert not res.ok and res.draft.scenes
     assert any("rewrite 1 failed" in n for n in res.notes)
+
+
+def test_factcheck_runs_only_on_drafts_the_critic_passes(project):
+    from shorts_factory.config import LLMCfg
+    from shorts_factory.content.llm import MockLLM
+    from shorts_factory.content.schemas import Critique
+    from shorts_factory.content.writer import ScriptWriter
+
+    class Critic(MockLLM):
+        def __init__(self, scores):
+            super().__init__()
+            self.scores, self.searches = list(scores), 0
+
+        def structured(self, system, user, schema, effort=None, context=None):
+            if schema is Critique:
+                s = self.scores.pop(0)
+                return Critique(hook_score=s, retention_score=s, clarity_score=s, payoff_score=s,
+                                originality_score=s, accuracy_risk="low", policy_risk="low",
+                                issues=[] if s >= 8 else ["flat middle"], verdict="publish" if s >= 8 else "revise")
+            return super().structured(system, user, schema, effort, context)
+
+        def research(self, system, user, context=None, max_uses=None):
+            self.searches += 1
+            return super().research(system, user, context, max_uses)
+
+    ch = _channel(project)
+    assert ch.fact_check
+    llm = Critic([5, 6, 9])  # two weak drafts, then one the critic approves
+    res = ScriptWriter(llm, LLMCfg()).write(ch, ch.formats[0].id, {"title": "The lighthouse of Riga"}, "", [])
+    assert res.ok and res.rounds == 3
+    assert llm.searches == 1  # only the approved draft was fact-checked
+    assert not llm.scores and llm.by_step["rewrite"]["requests"] == 2

@@ -60,7 +60,8 @@ def generate_topics(llm: LLM, db: DB, ch: ChannelCfg, n: int = 60, trends: str =
         prompts.topics_system(ch),
         prompts.topics_user(ch, n, [t for t, _ in existing], learnings_text(db.performance(ch.id)), trends, timely),
         TopicBatch,
-        context={"channel": ch.id, "n": n, "formats": [f.id for f in ch.formats], "timely": timely},
+        context={"channel": ch.id, "n": n, "formats": [f.id for f in ch.formats], "timely": timely,
+                 "step": "trend topics" if timely else "topics"},
     )
     ideas = [i.model_dump() for i in batch.ideas]
     kept = dedupe(ideas, existing, {f.id for f in ch.formats})
