@@ -1,5 +1,6 @@
 import random
 from datetime import date
+from pathlib import Path
 
 from shorts_factory.config import load_channels, load_settings
 from shorts_factory.content.schemas import SceneDraft, ScriptDraft
@@ -78,3 +79,44 @@ def test_parse_factcheck_maps_by_claim_number():
     assert out[claims[0]] == "OK"
     assert out[claims[1]].startswith("WRONG") and "3 m" in out[claims[1]]
     assert out[claims[2]].startswith("UNSURE")
+
+
+def test_find_config_from_any_folder(tmp_path, monkeypatch):
+    import pytest
+
+    from shorts_factory.config import find_config
+
+    project = Path(__file__).resolve().parent.parent
+    monkeypatch.chdir(project.parent)  # repo root, one level above shorts-factory/
+    assert find_config() == project / "config" / "settings.yaml"
+    monkeypatch.chdir(tmp_path)
+    assert find_config() == project / "config" / "settings.yaml"
+    with pytest.raises(FileNotFoundError):
+        find_config(tmp_path / "missing.yaml")
+
+
+def test_failed_rewrite_keeps_last_draft(project):
+    from shorts_factory.config import LLMCfg
+    from shorts_factory.content.llm import LLMError, MockLLM
+    from shorts_factory.content.schemas import Critique
+    from shorts_factory.content.writer import ScriptWriter
+
+    class FlakyRewrite(MockLLM):
+        drafts = 0
+
+        def structured(self, system, user, schema, effort=None, context=None):
+            if schema is Critique:  # never good enough, so a rewrite is requested
+                return Critique(hook_score=5, retention_score=5, clarity_score=5, payoff_score=5,
+                                originality_score=5, accuracy_risk="low", policy_risk="low",
+                                issues=["weak hook"], verdict="revise")
+            if schema is ScriptDraft:
+                self.drafts += 1
+                if self.drafts > 1:
+                    raise LLMError("response hit max_tokens")
+            return super().structured(system, user, schema, effort, context)
+
+    ch = _channel(project).model_copy(update={"fact_check": False})
+    res = ScriptWriter(FlakyRewrite(), LLMCfg()).write(
+        ch, ch.formats[0].id, {"title": "The lighthouse of Riga"}, "", [])
+    assert not res.ok and res.draft.scenes
+    assert any("rewrite 1 failed" in n for n in res.notes)

@@ -16,7 +16,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
 
-from .config import Settings, load_channels, load_settings
+from .config import DEFAULT_CONFIG, Settings, find_config, load_channels, load_settings
 from .db import DB
 from .pipeline import STAGES, Pipeline
 
@@ -36,11 +36,15 @@ state = _State()
 
 @app.callback()
 def main(
-    config: str = typer.Option("config/settings.yaml", "--config", "-c", help="Path to settings.yaml"),
+    config: str = typer.Option(DEFAULT_CONFIG, "--config", "-c", envvar="SHORTS_CONFIG", help="Path to settings.yaml"),
     mock: bool = typer.Option(False, "--mock", help="No GPU/API: deterministic stand-ins for every model"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    state.config, state.mock = config, mock
+    try:
+        state.config = str(find_config(config))
+    except FileNotFoundError as e:
+        raise typer.BadParameter(str(e), param_hint="--config") from None
+    state.mock = mock
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO, format="%(message)s",
                         handlers=[RichHandler(console=console, show_path=False, rich_tracebacks=True)])
     for noisy in ("httpx", "httpx2", "googleapiclient", "urllib3", "anthropic"):
@@ -73,7 +77,8 @@ def _pipeline(channels: Optional[str] = None) -> Pipeline:
     only = [c.strip() for c in channels.split(",")] if channels else None
     chs = load_channels(s, only)
     if not chs:
-        raise typer.BadParameter("no enabled channels match")
+        have = ", ".join(c.id for c in load_channels(s)) or f"none in {s.path(s.channels_dir)}"
+        raise typer.BadParameter(f"no enabled channels match (available: {have})")
     return Pipeline(s, chs)
 
 
@@ -103,7 +108,7 @@ def init() -> None:
 def doctor() -> None:
     """Check that the environment can run the full pipeline."""
     s = _settings()
-    rows: list[tuple[str, bool, str]] = []
+    rows: list[tuple[str, bool, str]] = [("config", True, state.config)]
     ff = shutil.which("ffmpeg")
     rows.append(("ffmpeg", bool(ff), ff or "apt-get install -y ffmpeg"))
     if ff:

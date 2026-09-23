@@ -111,6 +111,8 @@ Everything is resumable: if a run dies halfway, run the same command again.
 
 | Symptom | Fix |
 |---|---|
+| `no enabled channels match` | Run `shorts` from inside `shorts-factory/` (or pass `--config`); `shorts doctor` shows which settings file it loaded |
+| `response hit max_tokens` | Thinking counts toward the cap. Raise `llm.max_tokens` (up to 128000) or lower `llm.effort`; then re-run the same command |
 | `API key is not scoped to a workspace` / doctor `Claude API` red | Make a key inside a workspace (Console → Settings → Workspaces → Default → API keys) and replace `ANTHROPIC_API_KEY`, or add `ANTHROPIC_WORKSPACE_ID=wrkspc_…` to `secrets.env`. Reload with `set -a; . /workspace/secrets.env; set +a` |
 | `CUDA out of memory` in the image stage | `images.cpu_offload: true`, or a smaller model / resolution (e.g. 896x1600) |
 | Whisper: `libcudnn…` not found | `pip install nvidia-cudnn-cu12==9.*` in the main venv, or `align.compute_type: int8_float16` |

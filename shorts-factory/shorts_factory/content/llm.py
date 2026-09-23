@@ -58,8 +58,10 @@ class AnthropicLLM:
     def _create(self, **kw: Any) -> Any:
         import anthropic
 
+        # Streamed so long thinking + output can't hit the SDK's non-streaming timeout guard.
         try:
-            return self.client.beta.messages.create(**kw)
+            with self.client.beta.messages.stream(**kw) as stream:
+                return stream.get_final_message()
         except anthropic.APIStatusError as e:
             _raise_setup_error(e)
             raise
@@ -77,7 +79,7 @@ class AnthropicLLM:
     def _common(self, effort: str) -> dict[str, Any]:
         kw: dict[str, Any] = {
             "model": self.cfg.model,
-            "max_tokens": 16000,
+            "max_tokens": self.cfg.max_tokens,
             "thinking": {"type": "adaptive"},
             "output_config": {"effort": effort},
         }
@@ -104,11 +106,11 @@ class AnthropicLLM:
             raise LLMError(f"request declined ({getattr(details, 'category', None)}): "
                            f"{getattr(details, 'explanation', '')}")
         if resp.stop_reason == "max_tokens":
-            raise LLMError("response hit max_tokens")
+            raise LLMError("response hit max_tokens (raise llm.max_tokens or lower llm.effort)")
 
     def structured(self, system: str, user: str, schema: type[T], effort: str | None = None,
                    context: dict[str, Any] | None = None) -> T:
-        # create() + explicit validation instead of parse(): parse() validates eagerly, so a refusal or
+        # Raw schema + explicit validation instead of parse(): parse() validates eagerly, so a refusal or
         # max_tokens cut-off would surface as a JSON error before stop_reason can be inspected.
         from anthropic import transform_schema
 

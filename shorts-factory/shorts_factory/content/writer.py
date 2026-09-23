@@ -9,7 +9,7 @@ from rapidfuzz import fuzz
 
 from ..config import ChannelCfg, LLMCfg
 from . import prompts
-from .llm import LLM
+from .llm import LLM, LLMError
 from .schemas import Critique, ScriptDraft
 
 log = logging.getLogger(__name__)
@@ -151,7 +151,12 @@ class ScriptWriter:
             if critique.verdict == "reject" or rnd == self.cfg.max_rewrites:
                 break
             fixes = issues + fact_problems + critique.issues
-            draft = normalize(self.llm.structured(
-                system, prompts.rewrite_user(ch, fmt, draft, fixes), ScriptDraft,
-                effort=self.cfg.effort, context=ctx), ch)
+            try:
+                draft = normalize(self.llm.structured(
+                    system, prompts.rewrite_user(ch, fmt, draft, fixes), ScriptDraft,
+                    effort=self.cfg.effort, context=ctx), ch)
+            except LLMError as e:
+                # Keep the last complete draft; it is rejected (and replaced) rather than failing the job.
+                notes.append(f"rewrite {rnd + 1} failed: {e}")
+                break
         return ScriptResult(False, draft, critique, rnd + 1, notes)

@@ -18,6 +18,8 @@ class LLMCfg(BaseModel):
     effort: Effort = "high"
     critic_effort: Effort = "high"
     fallbacks: bool = True  # server-side refusal fallback (routes declined requests to another model)
+    # Thinking counts toward max_tokens; requests stream, so a large cap is safe (you pay for what's used).
+    max_tokens: int = 64000
     concurrency: int = 6
     max_rewrites: int = 2
     # A script must clear every threshold to ship; otherwise it is rewritten, then rejected.
@@ -309,6 +311,22 @@ class ChannelCfg(BaseModel):
 
 
 # ---------------------------------------------------------------- loading
+
+DEFAULT_CONFIG = "config/settings.yaml"
+
+
+def find_config(path: str | os.PathLike = DEFAULT_CONFIG) -> Path:
+    """Resolve settings.yaml. The default path is also looked up next to this package, so `shorts` works
+    from any folder (e.g. the repo root on the pod) instead of silently running with built-in defaults."""
+    p = Path(path)
+    if p.exists():
+        return p.resolve()
+    if str(path) == DEFAULT_CONFIG:
+        for c in (Path.cwd() / "shorts-factory" / DEFAULT_CONFIG,
+                  Path(__file__).resolve().parent.parent / DEFAULT_CONFIG):
+            if c.exists():
+                return c.resolve()
+    raise FileNotFoundError(f"settings not found: {p.resolve()} (cd into shorts-factory/ or pass --config)")
 
 
 def load_settings(path: str | os.PathLike = "config/settings.yaml") -> Settings:

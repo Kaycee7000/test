@@ -11,6 +11,7 @@ llm:
   effort: high
   critic_effort: high
   fallbacks: true        # server-side fallback if a request is declined by safety classifiers
+  max_tokens: 64000      # per request, thinking included; billed on actual use, not on this cap
   concurrency: 6         # parallel script jobs (API-bound, not GPU-bound)
   max_rewrites: 2
   min_hook_score: 8      # 1-10; the first 2 seconds decide whether a Short gets pushed
