@@ -20,6 +20,15 @@ its original host; if that host has no free GPU, create a new pod in US-IL-1 wit
 (`runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04`, the venvs depend on its Python) and the same
 network volume.
 
+Running Claude Code on the pod: keep its history on the volume, so chats survive a pod stop (`claude --resume`):
+```bash
+mkdir -p /workspace/.claude && rm -rf ~/.claude && ln -s /workspace/.claude ~/.claude
+export PATH="$HOME/.local/bin:$PATH"; env -u ANTHROPIC_API_KEY claude   # in tmux
+```
+**Before a session ends (and before stopping the pod), update "Where testing stands" below with what was run,
+the per-step cost table and what changed, then commit and push.** Other Claude sessions can't see the pod; GitHub is
+how they learn what happened.
+
 Session setup on the pod:
 ```bash
 cd /workspace/repo && git pull
